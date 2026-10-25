@@ -927,8 +927,14 @@ pub fn rules_import(state: State<AppState>, path: String) -> R<(usize, usize, Ve
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-            let Some((words, cat)) = line.split_once(';').or_else(|| line.split_once('\t')).or_else(|| line.split_once(',')) else { continue };
-            let (words, cat) = (words.trim().trim_matches('"'), cat.trim().trim_matches('"'));
+            let sep = if line.contains(';') { ';' } else if line.contains('\t') { '\t' } else { ',' };
+            let parts: Vec<&str> = line.split(sep).map(|p| p.trim().trim_matches('"')).collect();
+            if parts.len() < 2 {
+                continue;
+            }
+            let (words, cat) = (parts[0], parts[1]);
+            // 3ª columna opcional: "si"/"autonomo" marca los movimientos como de autónomo
+            let business = parts.get(2).map(|b| matches!(norm(b).as_str(), "si" | "autonomo" | "1" | "true" | "x"));
             if norm(words) == "palabras" || norm(words) == "texto" {
                 continue;
             }
@@ -942,8 +948,8 @@ pub fn rules_import(state: State<AppState>, path: String) -> R<(usize, usize, Ve
             }
             v.conn.execute("DELETE FROM rules WHERE learned=1 AND match_value=? AND set_category_id=?", rusqlite::params![key, cid])?;
             v.conn.execute(
-                "INSERT INTO rules(id,name,priority,match_field,match_op,match_value,set_category_id,learned) VALUES(?,?,8,'description','words',?,?,1)",
-                rusqlite::params![crate::ledger::uid(), key, key, cid],
+                "INSERT INTO rules(id,name,priority,match_field,match_op,match_value,set_category_id,set_business,learned) VALUES(?,?,8,'description','words',?,?,?,1)",
+                rusqlite::params![crate::ledger::uid(), key, key, cid, business.filter(|b| *b).map(|_| 1i64)],
             )?;
             added += 1;
         }

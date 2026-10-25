@@ -134,7 +134,7 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     seed(conn)
 }
 
-const SEED_VERSION: i64 = 2;
+const SEED_VERSION: i64 = 3;
 
 /// Categorías iniciales: (id, padre, nombre, tipo, color, icono)
 const CATEGORIES: &[(&str, Option<&str>, &str, &str, &str, &str)] = &[
@@ -212,6 +212,10 @@ const RULES: &[(&str, &str)] = &[
     ("VETERINARIO|VETERINARIA|KIWOKO|TIENDANIMAL|ZOOPLUS|MASCOTA", "mascotas"),
     ("SUBVENCION|AYUDA|PRESTACION|SEPE|INSS|DEVOLUCION HACIENDA|DEVOLUCION RENTA", "ayudas"),
     ("PRIMARK|FNAC", "compras"),
+    // v3
+    ("CARREF|MASYMAS|MASYMAST|UPPER|SUPERMERCADO|SUPERMERCADOS|ALIMENTACION|ALIMENTACIO|FRUTERIA|PANADERIA|CARNICERIA|FRUTOS SECOS|PESCADERIA|ULTRAMARINOS", "supermercado"),
+    ("ABONO EN LA TARJETA|REGULARIZACION COMPRA", "devoluciones"),
+    ("REVOLUT", "transferencia"),
 ];
 
 pub fn seed(conn: &Connection) -> rusqlite::Result<()> {

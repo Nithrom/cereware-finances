@@ -206,6 +206,20 @@ pub fn map_tx(t: &Value) -> Option<ParsedTx> {
     let remit: Vec<String> = t["remittance_information"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
     let party = if amt < 0 { &t["creditor"]["name"] } else { &t["debtor"]["name"] };
     let mut desc = remit.join(" ").trim().to_string();
+    // Algunos bancos (p. ej. Trade Republic) no envían remittance_information
+    if desc.is_empty() {
+        for k in ["additional_information", "note", "reference_number"] {
+            if let Some(x) = t[k].as_str().filter(|x| !x.trim().is_empty()) {
+                desc = x.trim().to_string();
+                break;
+            }
+        }
+    }
+    if desc.is_empty() {
+        if let Some(x) = t["bank_transaction_code"]["description"].as_str().filter(|x| !x.trim().is_empty()) {
+            desc = x.trim().to_string();
+        }
+    }
     if let Some(p) = party.as_str().filter(|p| !p.is_empty() && !desc.to_uppercase().contains(&p.to_uppercase())) {
         desc = if desc.is_empty() { p.to_string() } else { format!("{p} · {desc}") };
     }

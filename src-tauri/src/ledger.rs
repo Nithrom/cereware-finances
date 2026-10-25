@@ -14,7 +14,18 @@ pub fn uid() -> String {
 /// Mayúsculas, sin acentos, solo letras/números separados por un espacio.
 pub fn rule_norm(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
+    let mut prev_alpha: Option<bool> = None;
     for c in s.to_uppercase().chars() {
+        // Separa letras y números pegados: "MASYMAST186" → "MASYMAST 186", "LAS24H" → "LAS 24 H"
+        if c.is_alphanumeric() {
+            let a = c.is_alphabetic();
+            if prev_alpha.is_some_and(|p| p != a) {
+                out.push(' ');
+            }
+            prev_alpha = Some(a);
+        } else {
+            prev_alpha = None;
+        }
         let c = match c {
             'Á' | 'À' | 'Ä' | 'Â' => 'A',
             'É' | 'È' | 'Ë' | 'Ê' => 'E',
@@ -231,9 +242,12 @@ pub fn recategorize(conn: &Connection) -> rusqlite::Result<usize> {
     };
     let mut n = 0;
     for (id, d, cp, a, acc, old) in rows {
-        let (c, _) = cat.categorize(&d, cp.as_deref(), a, &acc);
+        let (c, b) = cat.categorize(&d, cp.as_deref(), a, &acc);
         if c.is_some() && c != old {
-            conn.execute("UPDATE transactions SET category_id=?, category_source='rule' WHERE id=?", params![c, id])?;
+            conn.execute(
+                "UPDATE transactions SET category_id=?, category_source='rule', is_business=COALESCE(?, is_business) WHERE id=?",
+                params![c, b.map(|x| x as i64), id],
+            )?;
             n += 1;
         }
     }
@@ -447,7 +461,7 @@ mod tests {
         ];
         let r = insert_parsed(&c, "a", &txs, None).unwrap();
         assert_eq!(r.inserted, 6);
-        assert_eq!(r.categorized, 4); // mercadona, 2x bar, nomina
+        assert_eq!(r.categorized, 5); // mercadona, 2x bar, nomina, revolut
         let r2 = insert_parsed(&c, "a", &txs, None).unwrap();
         assert_eq!((r2.inserted, r2.duplicates), (0, 6));
         let bal: i64 = c.query_row("SELECT balance_cents FROM accounts WHERE id='a'", [], |r| r.get(0)).unwrap();
@@ -464,14 +478,16 @@ mod tests {
         assert_eq!(n, 2);
 
         insert_parsed(&c, "a", &[ptx("2026-10-10", "BIZUM DE ANA CENA", 1500), ptx("2026-10-11", "BIZUM A PEPE", -900),
-            ptx("2026-10-12", "PANADERIA LA ESPIGA", -150), ptx("2026-10-13", "PANADERIA LA ESPIGA", -180)], None).unwrap();
+            ptx("2026-10-12", "ESTUDIO LA ESPIGA", -150), ptx("2026-10-13", "ESTUDIO LA ESPIGA", -180)], None).unwrap();
         let cat_of = |d: &str| -> Option<String> { c.query_row("SELECT category_id FROM transactions WHERE description=?", [d], |r| r.get(0)).unwrap() };
         assert_eq!(cat_of("BIZUM DE ANA CENA").as_deref(), Some("bizum-recibido"));
         assert_eq!(cat_of("BIZUM A PEPE").as_deref(), Some("bizum-enviado"));
         let g = uncategorized_groups(&c).unwrap();
-        let pan = g.iter().find(|x| x.key == "PANADERIA ESPIGA").unwrap();
+        let pan = g.iter().find(|x| x.key == "ESTUDIO ESPIGA").unwrap();
         assert_eq!(pan.count, 2);
-        assert_eq!(categorize_group(&c, "PANADERIA ESPIGA", false, "supermercado").unwrap(), 2);
+        assert_eq!(categorize_group(&c, "ESTUDIO ESPIGA", false, "restaurantes").unwrap(), 2);
+        assert_eq!(rule_norm("Compra en MASYMAST186-SANTA ANA"), "COMPRA EN MASYMAST 186 SANTA ANA");
+        assert_eq!(rule_norm("LAS24H"), "LAS 24 H");
 
         let page = list(&c, &TxFilter { kind: Some("expense".into()), ..Default::default() }).unwrap();
         assert!(page.items.iter().all(|t| t.amount_cents < 0 && !t.is_transfer));

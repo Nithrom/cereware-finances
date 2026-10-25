@@ -13,3 +13,8 @@ src-tauri/gen/
 Thumbs.db
 brand/logo/_cf-logo.zip
 _tmp/
+
+# Datos personales exportados (no subir)
+movimientos-*.csv
+reglas-*.csv
+*.pem
