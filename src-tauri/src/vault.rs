@@ -37,6 +37,8 @@ pub enum VaultError {
     Io(#[from] std::io::Error),
     #[error("Error criptográfico")]
     Crypto,
+    #[error("{0}")]
+    Msg(String),
 }
 
 impl serde::Serialize for VaultError {
@@ -78,7 +80,6 @@ impl Vault {
         let key = derive_key(password, &salt, M_COST, T_COST, P_COST)?;
         let conn = Connection::open_in_memory()?;
         crate::schema::migrate(&conn)?;
-        crate::schema::seed(&conn)?;
         let v = Vault { conn, key, salt, path: path.to_path_buf() };
         v.save()?;
         Ok(v)
@@ -104,6 +105,27 @@ impl Vault {
         conn.deserialize_read_exact(MAIN_DB, &plain[..], plain.len(), false)?;
         crate::schema::migrate(&conn)?;
         Ok(Vault { conn, key, salt, path: path.to_path_buf() })
+    }
+
+    /// Cambia la contraseña: nueva sal y nueva clave, y guarda.
+    pub fn rekey(&mut self, new_password: &str) -> Result<(), VaultError> {
+        if new_password.chars().count() < 8 {
+            return Err(VaultError::WeakPassword);
+        }
+        let mut salt = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut salt);
+        self.key = derive_key(new_password, &salt, M_COST, T_COST, P_COST)?;
+        self.salt = salt;
+        self.save()
+    }
+
+    /// Comprueba la contraseña actual sin tocar el estado.
+    pub fn verify(&self, password: &str) -> bool {
+        Vault::open(&self.path, password).is_ok()
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     /// Serializa la base en memoria, la cifra y la escribe de forma atómica.

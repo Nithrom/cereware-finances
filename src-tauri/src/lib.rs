@@ -1,4 +1,9 @@
+mod analytics;
 mod commands;
+mod fiscal;
+mod import;
+mod ledger;
+mod planning;
 mod schema;
 mod vault;
 
@@ -14,6 +19,7 @@ pub struct AppState {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             app.manage(AppState { vault: Mutex::new(None), path: dir.join("cereware-finances.cwf") });
@@ -29,6 +35,41 @@ pub fn run() {
             commands::accounts_list,
             commands::categories_list,
             commands::dashboard_summary,
+            commands::account_create,
+            commands::account_update,
+            commands::account_delete,
+            commands::import_preview,
+            commands::import_commit,
+            commands::tx_list,
+            commands::tx_update,
+            commands::tx_create,
+            commands::tx_delete,
+            commands::rules_list,
+            commands::rule_create,
+            commands::rule_delete,
+            commands::dashboard_full,
+            commands::budgets_list,
+            commands::budget_set,
+            commands::report_categories,
+            commands::report_flows,
+            commands::recurring_list,
+            commands::recurring_upsert,
+            commands::recurring_set_active,
+            commands::recurring_delete,
+            commands::goals_list,
+            commands::goal_upsert,
+            commands::goal_contribute,
+            commands::goal_delete,
+            commands::forecast,
+            commands::fiscal_year,
+            commands::fiscal_config_get,
+            commands::fiscal_config_set,
+            commands::vault_change_password,
+            commands::backup_export,
+            commands::backup_restore,
+            commands::export_csv,
+            commands::category_upsert,
+            commands::category_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar CereWare Finances");

@@ -2,7 +2,7 @@
 :root{
   --font:"Plus Jakarta Sans Variable",system-ui,sans-serif;
   --r-sm:8px;--r-md:12px;--r-lg:18px;--r-xl:24px;
-  --brand-granate:#7F1D1D;--brand-cherry:#E5383B;
+  --brand-granate:#7F1D1D;--brand-cherry:#E5383B;--chart:#7F1D1D;
   /* Claro */
   --bg:#F7F5F3;--surface:#FFFFFF;--surface-2:#F1EEEB;--border:#E7E2DE;
   --text:#1F1A1C;--text-2:#6E6467;--text-3:#9A9093;
@@ -15,6 +15,7 @@
   --c1:#6C8EF5;--c2:#A78BFA;--c3:#F5A524;--c4:#2BB3A3;--c5:#F472B6;--c6:#FB923C;--c7:#38BDF8;--c8:#94A3B8;
 }
 :root[data-theme=dark]{
+  --chart:#E5383B;
   --bg:#141215;--surface:#1D1A1E;--surface-2:#262227;--border:#332E34;
   --text:#F2EEEC;--text-2:#A9A0A3;--text-3:#766D70;
   --primary:#7F1D1D;--primary-hover:#932222;--on-primary:#FFFFFF;--primary-soft:#2C1A1C;
@@ -24,6 +25,7 @@
   --shadow:none;
 }
 :root[data-theme=oled]{
+  --chart:#E5383B;
   --bg:#000000;--surface:#0B0A0B;--surface-2:#141214;--border:#221E22;
   --text:#EEEAE8;--text-2:#9C9396;--text-3:#6A6265;
   --primary:#7F1D1D;--primary-hover:#932222;--on-primary:#FFFFFF;--primary-soft:#1F1012;

@@ -118,6 +118,11 @@ const MIGRATIONS: &[&str] = &[
         archived INTEGER NOT NULL DEFAULT 0
     );
     "#,
+    // v2
+    r#"
+    ALTER TABLE transactions ADD COLUMN category_source TEXT; -- rule | user | auto
+    CREATE INDEX idx_tx_hash_group ON transactions(transfer_group);
+    "#,
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -126,8 +131,10 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(current as usize) {
         conn.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1))?;
     }
-    Ok(())
+    seed(conn)
 }
+
+const SEED_VERSION: i64 = 1;
 
 /// Categorías iniciales: (id, padre, nombre, tipo, color, icono)
 const CATEGORIES: &[(&str, Option<&str>, &str, &str, &str, &str)] = &[
@@ -159,12 +166,51 @@ const CATEGORIES: &[(&str, Option<&str>, &str, &str, &str, &str)] = &[
     ("transferencia", None, "Transferencia interna", "transfer", "#94A3B8", "arrow-left-right"),
 ];
 
+/// Reglas del sistema: (palabras a buscar, categoría)
+const RULES: &[(&str, &str)] = &[
+    ("MERCADONA|CARREFOUR|LIDL|ALDI|DIA|EROSKI|CONSUM|ALCAMPO|HIPERCOR|AHORRAMAS|SUPERCOR|BM SUPERMERCADOS|SPAR|GADIS|FROIZ|MAS Y MAS|COVIRAN", "supermercado"),
+    ("REPSOL|CEPSA|GALP|BP|SHELL|PETRONOR|BALLENOIL|PLENOIL|PETROPRIX|MOEVE|GASOLINERA", "combustible"),
+    ("RENFE|METRO|EMT|ALSA|CABIFY|UBER|BOLT|BLABLACAR|FREENOW|TMB|AVANZA|TRAM", "transporte-publico"),
+    ("NETFLIX|SPOTIFY|HBO|HBO MAX|DISNEY|PRIME VIDEO|APPLE COM BILL|YOUTUBE|DAZN|MOVISTAR PLUS|PLAYSTATION|STEAM|XBOX|CHATGPT|OPENAI|ANTHROPIC|CLAUDE AI|AUDIBLE|FILMIN|CRUNCHYROLL|ICLOUD|PATREON|TWITCH", "suscripciones"),
+    ("AMAZON|AMZN|ALIEXPRESS|SHEIN|TEMU|EL CORTE INGLES|IKEA|LEROY MERLIN|ACTION|PRIMOR|DRUNI", "compras"),
+    ("PCCOMPONENTES|MEDIAMARKT|MEDIA MARKT|APPLE STORE|FNAC|WORTEN|COOLMOD|XIAOMI", "tecnologia"),
+    ("ZARA|PRIMARK|H M|PULL BEAR|BERSHKA|STRADIVARIUS|MANGO|SPRINGFIELD|LEFTIES|JD SPORTS|FOOT LOCKER|KIABI", "ropa"),
+    ("IBERDROLA|ENDESA|NATURGY|TOTALENERGIES|HOLALUZ|REPSOL LUZ|AQUALIA|HIDROGEA|CANAL ISABEL|AGUAS DE|OCTOPUS ENERGY", "suministros"),
+    ("MOVISTAR|VODAFONE|ORANGE|YOIGO|DIGI|PEPEPHONE|MASMOVIL|LOWI|O2|SIMYO|JAZZTEL|FINETWORK|AVATEL", "internet"),
+    ("TGSS|SEG SOCIAL|SEGURIDAD SOCIAL|REGIMEN ESPECIAL|RETA|CUOTA AUTONOMO|CUOTA AUTONOMOS", "cuota-reta"),
+    ("AEAT|AGENCIA TRIBUTARIA|HACIENDA|MODELO 303|MODELO 130|AGENCIA ESTATAL ADMIN", "impuestos"),
+    ("NOMINA|PAYROLL|SALARIO", "nomina"),
+    ("FARMACIA|GIMNASIO|BASIC FIT|DECATHLON|MCFIT|ALTAFIT|VIVAGYM|CLINICA|DENTAL|SANITAS|ADESLAS|DKV|ASISA|OPTICA", "salud"),
+    ("GLOVO|JUST EAT|UBER EATS|TELEPIZZA|BURGER KING|MCDONALD|MCDONALDS|MCDONALD S|KFC|STARBUCKS|TGB|GOIKO|RESTAURANTE|BAR|CAFETERIA|PIZZERIA|VIPS|FOSTER|TACO BELL|DOMINOS|100 MONTADITOS|TAPERIA|CERVECERIA", "restaurantes"),
+    ("RYANAIR|VUELING|IBERIA|BOOKING|AIRBNB|EASYJET|AIR EUROPA|BINTER|EXPEDIA|HOTEL", "viajes"),
+    ("ALQUILER|HIPOTECA|COMUNIDAD PROPIETARIOS", "alquiler"),
+];
+
 pub fn seed(conn: &Connection) -> rusqlite::Result<()> {
+    let v: i64 = conn
+        .query_row("SELECT value FROM settings WHERE key='seed_version'", [], |r| r.get::<_, String>(0))
+        .map(|s| s.parse().unwrap_or(0))
+        .unwrap_or(0);
+    if v >= SEED_VERSION {
+        return Ok(());
+    }
     let mut st = conn.prepare(
         "INSERT OR IGNORE INTO categories(id,parent_id,name,kind,color,icon,sort,is_system) VALUES(?,?,?,?,?,?,?,1)",
     )?;
     for (i, (id, parent, name, kind, color, icon)) in CATEGORIES.iter().enumerate() {
         st.execute(rusqlite::params![id, parent, name, kind, color, icon, i as i64])?;
     }
+    let mut st = conn.prepare(
+        "INSERT OR IGNORE INTO rules(id,name,priority,match_field,match_op,match_value,set_category_id,learned) VALUES(?,?,100,'description','contains',?,?,0)",
+    )?;
+    for (words, cat) in RULES {
+        for w in words.split('|') {
+            st.execute(rusqlite::params![format!("sys-{cat}-{w}"), w, w, cat])?;
+        }
+    }
+    conn.execute(
+        "INSERT INTO settings(key,value) VALUES('seed_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        [SEED_VERSION.to_string()],
+    )?;
     Ok(())
 }
