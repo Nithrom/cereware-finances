@@ -19,3 +19,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# CereWare: plugins nativos (escáner QR y almacén seguro) usan reflexión; R8 los rompía en release.
+-keep class app.tauri.** { *; }
+-keep class androidx.camera.** { *; }
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_barcode** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_common** { *; }
+-keep class androidx.biometric.** { *; }
+-keepattributes SourceFile,LineNumberTable
