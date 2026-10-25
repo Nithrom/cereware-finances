@@ -528,6 +528,16 @@ pub fn goal_delete(state: State<AppState>, id: String) -> R<()> {
 }
 
 #[tauri::command]
+pub fn sub_alerts(state: State<AppState>) -> R<Vec<crate::planning::SubAlert>> {
+    with_vault_save(&state, |v| Ok(crate::planning::sub_alerts(&v.conn)?))
+}
+
+#[tauri::command]
+pub fn sub_alerts_dismiss(state: State<AppState>, keys: Vec<String>) -> R<()> {
+    with_vault_save(&state, |v| Ok(crate::planning::dismiss_alerts(&v.conn, &keys)?))
+}
+
+#[tauri::command]
 pub fn forecast(state: State<AppState>, days: i64, include_variable: bool) -> R<crate::planning::Forecast> {
     with_vault_save(&state, |v| {
         crate::planning::detect(&v.conn)?;

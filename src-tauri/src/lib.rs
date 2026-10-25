@@ -68,6 +68,8 @@ pub fn run() {
             commands::goal_contribute,
             commands::goal_delete,
             commands::forecast,
+            commands::sub_alerts,
+            commands::sub_alerts_dismiss,
             commands::business_year,
             commands::vault_change_password,
             commands::backup_export,

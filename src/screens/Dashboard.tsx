@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Upload, Landmark, FileSpreadsheet, AlertTriangle, CalendarClock, RefreshCw } from "lucide-react";
-import { api, api2, bankApi, type Account, type BudgetRow, type Dashboard as D, type Goal, type Recurring, type TxRow, type Category } from "../lib/api";
+import { Upload, Landmark, FileSpreadsheet, AlertTriangle, CalendarClock, RefreshCw, Repeat, TrendingUp, X } from "lucide-react";
+import { api, api2, bankApi, type Account, type BudgetRow, type Dashboard as D, type Goal, type Recurring, type TxRow, type Category, type SubAlert } from "../lib/api";
 import { fmtDate, fmtMonthShort, greeting, money, today } from "../lib/format";
 import { CatIcon } from "../components/ui";
 import { Donut, LineArea, Progress, Ring } from "../components/charts";
@@ -14,6 +14,7 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
   const [rec, setRec] = useState<Recurring[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [cats, setCats] = useState<Record<string, Category>>({});
+  const [alerts, setAlerts] = useState<SubAlert[]>([]);
 
   const load = () => {
     api2.dashboard().then((x) => {
@@ -21,6 +22,7 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
       if (x.accounts === 0) return;
       api2.budgets(x.month).then((b) => setBudgets(b.filter((r) => r.budget_cents)));
       api2.recurring().then((r) => setRec(r.filter((x) => x.active)));
+      api2.subAlerts().then(setAlerts).catch(() => {});
     }).catch(console.error);
     api.accounts().then(setAccounts);
     api.txList({ limit: 6 }).then((p) => setRecent(p.items));
@@ -34,6 +36,10 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const linked = accounts.filter((a) => a.provider === "enablebanking");
   const expiring = linked.filter((a) => a.consent_expires_at && new Date(a.consent_expires_at).getTime() - Date.now() < 14 * 864e5);
+  function dismiss(a: SubAlert) {
+    setAlerts((l) => l.filter((x) => x.key !== a.key));
+    api2.subAlertsDismiss([a.key]).catch(console.error);
+  }
   async function sync() {
     setSyncing(true);
     try {
@@ -87,6 +93,15 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
               <AlertTriangle size={16} /><span><b>El acceso a {expiring[0].institution} {new Date(expiring[0].consent_expires_at!) < new Date() ? "caducó" : "caduca"} el {fmtDate(expiring[0].consent_expires_at!.slice(0, 10))}.</b> Renueva el consentimiento para seguir sincronizando.</span>
             </div>
           )}
+          {alerts.slice(0, 3).map((a) => (
+            <div key={a.key} className="banner warn clickable" onClick={() => onNav("suscripciones")}>
+              {a.kind === "up" ? <TrendingUp size={16} /> : <Repeat size={16} />}
+              <span className="grow">{a.kind === "up"
+                ? <><b>{a.name} sube de precio:</b> {money(Math.abs(a.prev_cents!))} → {money(Math.abs(a.amount_cents))}.</>
+                : <><b>Nueva suscripción detectada:</b> {a.name}, {money(Math.abs(a.amount_cents))}.</>}</span>
+              <button className="btn g icon" aria-label="Descartar aviso" onClick={(e) => { e.stopPropagation(); dismiss(a); }}><X size={14} /></button>
+            </div>
+          ))}
           {d.uncategorized > 0 && (
             <div className="banner warn clickable" onClick={() => onNav("movimientos", { kind: "uncategorized" })}>
               <AlertTriangle size={16} /><span><b>{d.uncategorized} movimientos sin categoría.</b> Categorízalos para que los informes sean precisos.</span>

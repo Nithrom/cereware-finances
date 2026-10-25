@@ -80,9 +80,11 @@ pub fn detect(conn: &Connection) -> rusqlite::Result<usize> {
         if items.len() < min_n || gaps.iter().any(|&x| (x as f64 - med).abs() > med * 0.35 + 3.0) {
             continue;
         }
-        let mut amts: Vec<i64> = items.iter().map(|i| i.1.abs()).collect();
+        // El último cargo puede cambiar de precio (subida): la regularidad se mide en los anteriores
+        let body = if items.len() >= 3 { &items[..items.len() - 1] } else { &items[..] };
+        let mut amts: Vec<i64> = body.iter().map(|i| i.1.abs()).collect();
         let med_amt = median(&mut amts);
-        if items.iter().any(|i| (i.1.abs() - med_amt).abs() as f64 > med_amt as f64 * 0.25) {
+        if body.iter().any(|i| (i.1.abs() - med_amt).abs() as f64 > med_amt as f64 * 0.25) {
             continue;
         }
         let last = items.last().unwrap();
@@ -225,6 +227,57 @@ pub fn upsert(conn: &Connection, id: Option<&str>, i: &RecurringInput) -> rusqli
 // ---------------------------------------------------------------- huchas
 
 #[derive(Serialize)]
+pub struct SubAlert {
+    pub key: String,
+    pub kind: &'static str, // new | up
+    pub id: String,
+    pub name: String,
+    pub amount_cents: i64,
+    pub prev_cents: Option<i64>,
+}
+
+const SEEN: &str = "sub_alerts_seen";
+
+fn seen(conn: &Connection) -> rusqlite::Result<Option<Vec<String>>> {
+    let v: Option<String> = conn.query_row("SELECT value FROM settings WHERE key=?", [SEEN], |r| r.get(0)).optional()?;
+    Ok(v.map(|v| serde_json::from_str(&v).unwrap_or_default()))
+}
+
+/// Suscripciones nuevas y subidas de precio que aún no se han descartado.
+/// La primera vez marca como vistas las existentes para no avisar de todo.
+pub fn sub_alerts(conn: &Connection) -> rusqlite::Result<Vec<SubAlert>> {
+    detect(conn)?;
+    let all: Vec<SubAlert> = list(conn)?
+        .into_iter()
+        .filter(|r| r.active && r.is_subscription && r.amount_cents < 0)
+        .map(|r| {
+            let up = r.prev_amount_cents.filter(|p| r.amount_cents.abs() > p.abs());
+            SubAlert {
+                key: match up { Some(_) => format!("up:{}:{}", r.id, r.amount_cents), None => format!("new:{}", r.id) },
+                kind: if up.is_some() { "up" } else { "new" },
+                id: r.id, name: r.name, amount_cents: r.amount_cents, prev_cents: up,
+            }
+        })
+        .collect();
+    match seen(conn)? {
+        None => {
+            let keys: Vec<String> = all.iter().flat_map(|a| [format!("new:{}", a.id), a.key.clone()]).collect();
+            dismiss_alerts(conn, &keys)?;
+            Ok(vec![])
+        }
+        Some(s) => Ok(all.into_iter().filter(|a| !s.contains(&a.key) && (a.kind == "up" || !s.contains(&format!("new:{}", a.id)))).collect()),
+    }
+}
+
+pub fn dismiss_alerts(conn: &Connection, keys: &[String]) -> rusqlite::Result<()> {
+    let mut s = seen(conn)?.unwrap_or_default();
+    for k in keys { if !s.contains(k) { s.push(k.clone()) } }
+    if s.len() > 500 { s.drain(..s.len() - 500); }
+    conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![SEEN, serde_json::to_string(&s).unwrap()])?;
+    Ok(())
+}
+
+#[derive(Serialize)]
 pub struct Goal {
     pub id: String,
     pub name: String,
@@ -355,5 +408,27 @@ mod tests {
         let f = forecast(&c, 90, false).unwrap();
         assert!(f.events.len() >= 2);
         assert_eq!(f.end_cents, 50000 - 1299 * f.events.len() as i64);
+    }
+
+    #[test]
+    fn sub_alerts_flow() {
+        let c = Connection::open_in_memory().unwrap();
+        crate::schema::migrate(&c).unwrap();
+        c.execute("INSERT INTO accounts(id,name,institution,balance_cents) VALUES('a','C','B',50000)", []).unwrap();
+        let today = chrono::Local::now().date_naive();
+        let add = |i: u32, amt: i64, d: &str| {
+            let dt = today.checked_sub_months(Months::new(i)).unwrap();
+            c.execute("INSERT INTO transactions(id,account_id,booking_date,amount_cents,description,category_id) VALUES(?,?,?,?,?, 'suscripciones')",
+                params![uid(), "a", dt.to_string(), amt, d]).unwrap();
+        };
+        for i in 2..=4 { add(i, -1399, "NETFLIX.COM") }
+        assert!(sub_alerts(&c).unwrap().is_empty(), "la primera vez no avisa de lo existente");
+        add(1, -1799, "NETFLIX.COM"); // subida del 28 %
+        for i in 1..=3 { add(i, -999, "DISNEY PLUS") }
+        let a = sub_alerts(&c).unwrap();
+        assert!(a.iter().any(|x| x.kind == "up" && x.prev_cents == Some(-1399)), "{:?}", a.iter().map(|x| &x.key).collect::<Vec<_>>());
+        assert!(a.iter().any(|x| x.kind == "new" && x.name.contains("Disney")));
+        dismiss_alerts(&c, &a.iter().map(|x| x.key.clone()).collect::<Vec<_>>()).unwrap();
+        assert!(sub_alerts(&c).unwrap().is_empty());
     }
 }

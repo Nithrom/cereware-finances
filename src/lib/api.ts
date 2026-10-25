@@ -1,7 +1,7 @@
 import { invoke as rawInvoke } from "@tauri-apps/api/core";
 
 /** Tras cualquier escritura, sincroniza a los pocos segundos (agrupando cambios seguidos). */
-const WRITE = /^(?!sync_|vault_|settings_)\w+_(create|update|delete|set|upsert|contribute|commit|restore|import|finish|active|split)$|^categorize_group$|^bank_sync/;
+const WRITE = /^(?!sync_|vault_|settings_)\w+_(create|update|delete|set|upsert|contribute|commit|restore|import|finish|active|split|dismiss)$|^categorize_group$|^bank_sync/;
 let syncTimer: number | undefined;
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const p = rawInvoke<T>(cmd, args);
@@ -96,6 +96,7 @@ export type Dashboard = {
   month_income_cents: number; month_expense_cents: number; avg_expense_cents: number; avg_income_cents: number;
   balance_history: { month: string; value_cents: number }[]; flows: MonthFlow[]; by_category: CatSlice[];
 };
+export type SubAlert = { key: string; kind: "new" | "up"; id: string; name: string; amount_cents: number; prev_cents: number | null };
 export type BudgetRow = { category_id: string; name: string; color: string; icon: string; budget_cents: number | null; spent_cents: number; avg_cents: number };
 export type Recurring = {
   id: string; name: string; account_id: string | null; account_name: string | null; category_id: string | null;
@@ -134,6 +135,8 @@ export const api2 = {
   goalUpsert: (id: string | null, input: GoalInput) => invoke<void>("goal_upsert", { id, input }),
   goalContribute: (id: string, amountCents: number) => invoke<void>("goal_contribute", { id, amountCents }),
   goalDelete: (id: string) => invoke<void>("goal_delete", { id }),
+  subAlerts: () => invoke<SubAlert[]>("sub_alerts"),
+  subAlertsDismiss: (keys: string[]) => invoke<void>("sub_alerts_dismiss", { keys }),
   forecast: (days: number, includeVariable: boolean) => invoke<Forecast>("forecast", { days, includeVariable }),
   businessYear: (year: number) => invoke<BusinessYear>("business_year", { year }),
   changePassword: (current: string, newPassword: string) => invoke<void>("vault_change_password", { current, newPassword }),
