@@ -1,4 +1,5 @@
 mod analytics;
+mod bank;
 mod commands;
 mod fiscal;
 mod import;
@@ -12,6 +13,7 @@ use tauri::Manager;
 
 pub struct AppState {
     pub vault: Mutex<Option<vault::Vault>>,
+    pub bank_code: std::sync::Arc<Mutex<Option<String>>>,
     pub path: std::path::PathBuf,
 }
 
@@ -22,7 +24,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
-            app.manage(AppState { vault: Mutex::new(None), path: dir.join("cereware-finances.cwf") });
+            app.manage(AppState { vault: Mutex::new(None), bank_code: Default::default(), path: dir.join("cereware-finances.cwf") });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -70,6 +72,13 @@ pub fn run() {
             commands::export_csv,
             commands::category_upsert,
             commands::category_delete,
+            commands::bank_config_get,
+            commands::bank_config_set,
+            commands::bank_aspsps,
+            commands::bank_connect_start,
+            commands::bank_connect_poll,
+            commands::bank_connect_finish,
+            commands::bank_sync,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar CereWare Finances");

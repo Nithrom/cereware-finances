@@ -659,3 +659,183 @@ pub fn category_delete(state: State<AppState>, id: String) -> R<()> {
         Ok(())
     })
 }
+
+// ---------------------------------------------------------------- conexión bancaria (Enable Banking)
+
+fn bank_cfg(state: &State<AppState>) -> R<crate::bank::BankConfig> {
+    with_vault(state, |v| crate::bank::load_config(&v.conn).ok_or_else(|| err(crate::bank::BankError::NotConfigured.to_string())))
+}
+fn berr(e: crate::bank::BankError) -> VaultError {
+    err(e.to_string())
+}
+
+#[derive(Serialize)]
+pub struct BankConfigView {
+    app_id: String,
+    has_key: bool,
+    redirect_url: String,
+}
+
+#[tauri::command]
+pub fn bank_config_get(state: State<AppState>) -> R<Option<BankConfigView>> {
+    with_vault(&state, |v| {
+        Ok(crate::bank::load_config(&v.conn).map(|c| BankConfigView { app_id: c.app_id, has_key: !c.private_key.is_empty(), redirect_url: c.redirect_url }))
+    })
+}
+
+#[tauri::command]
+pub fn bank_config_set(state: State<AppState>, app_id: String, key_path: Option<String>, redirect_url: String) -> R<()> {
+    with_vault_save(&state, |v| {
+        let mut cfg = crate::bank::load_config(&v.conn).unwrap_or_default();
+        cfg.app_id = app_id.trim().to_string();
+        cfg.redirect_url = redirect_url.trim().to_string();
+        if let Some(p) = key_path {
+            let pem = std::fs::read_to_string(&p).map_err(|_| err("No se pudo leer el fichero de la clave"))?;
+            if !pem.contains("PRIVATE KEY") {
+                return Err(err("El fichero no contiene una clave privada PEM"));
+            }
+            jsonwebtoken::EncodingKey::from_rsa_pem(pem.as_bytes()).map_err(|_| err("La clave privada no es RSA válida"))?;
+            cfg.private_key = pem;
+        }
+        v.conn.execute(
+            "INSERT INTO settings(key,value) VALUES('bank_config',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            [serde_json::to_string(&cfg).unwrap_or_default()],
+        )?;
+        Ok(())
+    })
+}
+
+#[tauri::command]
+pub async fn bank_aspsps(state: State<'_, AppState>, country: String) -> R<Vec<crate::bank::Aspsp>> {
+    let cfg = bank_cfg(&state)?;
+    tauri::async_runtime::spawn_blocking(move || crate::bank::aspsps(&cfg, &country)).await.map_err(|_| err("Error interno"))?.map_err(berr)
+}
+
+#[derive(Serialize)]
+pub struct AuthStart {
+    url: String,
+    state: String,
+    auto_capture: bool,
+}
+
+#[tauri::command]
+pub async fn bank_connect_start(state: State<'_, AppState>, name: String, country: String, days: i64) -> R<AuthStart> {
+    let cfg = bank_cfg(&state)?;
+    let st = crate::ledger::uid();
+    let s2 = st.clone();
+    let cfg2 = cfg.clone();
+    let url = tauri::async_runtime::spawn_blocking(move || crate::bank::start_auth(&cfg2, &name, &country, days, &s2))
+        .await
+        .map_err(|_| err("Error interno"))?
+        .map_err(berr)?;
+    *state.bank_code.lock().unwrap() = None;
+    let auto = crate::bank::listen_for_code(&cfg.redirect_url, state.bank_code.clone());
+    Ok(AuthStart { url, state: st, auto_capture: auto })
+}
+
+#[tauri::command]
+pub fn bank_connect_poll(state: State<AppState>) -> Option<String> {
+    state.bank_code.lock().unwrap().clone()
+}
+
+#[derive(Serialize)]
+pub struct ConnectResult {
+    accounts: Vec<String>,
+    imported: usize,
+}
+
+/// Crea la sesión con el código, vincula las cuentas y hace la primera sincronización.
+#[tauri::command]
+pub async fn bank_connect_finish(state: State<'_, AppState>, code_or_url: String, institution: String) -> R<ConnectResult> {
+    let code = crate::bank::extract_code(&code_or_url).ok_or_else(|| err("No se encuentra el código de autorización en lo pegado"))?;
+    let cfg = bank_cfg(&state)?;
+    let session = tauri::async_runtime::spawn_blocking({
+        let cfg = cfg.clone();
+        move || crate::bank::create_session(&cfg, &code)
+    })
+    .await
+    .map_err(|_| err("Error interno"))?
+    .map_err(berr)?;
+    if session.accounts.is_empty() {
+        return Err(err("El banco no ha devuelto ninguna cuenta"));
+    }
+    let inst = if institution.trim().is_empty() { session.aspsp.clone() } else { institution };
+    let mut names = Vec::new();
+    with_vault_save(&state, |v| {
+        for a in &session.accounts {
+            let masked = a.iban.as_ref().map(|i| format!("···· {}", &i[i.len().saturating_sub(4)..]));
+            let existing: Option<String> = v
+                .conn
+                .query_row("SELECT id FROM accounts WHERE provider='enablebanking' AND provider_ref=?", [&a.uid], |r| r.get(0))
+                .ok();
+            match existing {
+                Some(id) => {
+                    v.conn.execute("UPDATE accounts SET consent_expires_at=?, archived=0 WHERE id=?", rusqlite::params![session.valid_until, id])?;
+                }
+                None => {
+                    v.conn.execute(
+                        "INSERT INTO accounts(id,name,institution,currency,iban_masked,provider,provider_ref,consent_expires_at) VALUES(?,?,?,?,?,'enablebanking',?,?)",
+                        rusqlite::params![crate::ledger::uid(), a.name, inst, a.currency, masked, a.uid, session.valid_until],
+                    )?;
+                }
+            }
+            names.push(format!("{inst} · {}", a.name));
+        }
+        Ok(())
+    })?;
+    let results = sync_all(&state, &cfg).await?;
+    Ok(ConnectResult { accounts: names, imported: results.iter().map(|r| r.inserted).sum() })
+}
+
+#[derive(Serialize)]
+pub struct SyncResult {
+    account: String,
+    inserted: usize,
+    error: Option<String>,
+}
+
+async fn sync_all(state: &State<'_, AppState>, cfg: &crate::bank::BankConfig) -> R<Vec<SyncResult>> {
+    let accounts: Vec<(String, String, String, Option<String>)> = with_vault(state, |v| {
+        let mut st = v.conn.prepare(
+            "SELECT a.id, a.provider_ref, a.institution||' · '||a.name, (SELECT MAX(booking_date) FROM transactions WHERE account_id=a.id)
+             FROM accounts a WHERE a.provider='enablebanking' AND a.archived=0",
+        )?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    })?;
+    let mut out = Vec::new();
+    for (id, uid, label, last) in accounts {
+        let from = last
+            .and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok())
+            .map(|d| d - chrono::Duration::days(7))
+            .unwrap_or_else(|| chrono::Local::now().date_naive() - chrono::Duration::days(730))
+            .to_string();
+        let cfg2 = cfg.clone();
+        let uid2 = uid.clone();
+        let fetched = tauri::async_runtime::spawn_blocking(move || -> Result<(Vec<crate::import::ParsedTx>, Option<i64>), crate::bank::BankError> {
+            let txs = crate::bank::transactions(&cfg2, &uid2, &from)?;
+            let bal = crate::bank::balance(&cfg2, &uid2)?;
+            Ok((txs, bal))
+        })
+        .await
+        .map_err(|_| err("Error interno"))?;
+        match fetched {
+            Ok((txs, bal)) => {
+                let r = with_vault_save(state, |v| {
+                    let r = crate::ledger::insert_parsed(&v.conn, &id, &txs, bal)?;
+                    v.conn.execute("UPDATE accounts SET updated_at=datetime('now') WHERE id=?", [&id])?;
+                    Ok(r)
+                })?;
+                out.push(SyncResult { account: label, inserted: r.inserted, error: None });
+            }
+            Err(e) => out.push(SyncResult { account: label, inserted: 0, error: Some(e.to_string()) }),
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn bank_sync(state: State<'_, AppState>) -> R<Vec<SyncResult>> {
+    let cfg = bank_cfg(&state)?;
+    sync_all(&state, &cfg).await
+}

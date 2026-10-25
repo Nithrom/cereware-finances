@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Upload, Landmark, Pencil, Trash2, Link2 } from "lucide-react";
-import { api, errMsg, type Account, type AccountInput } from "../lib/api";
+import { Plus, Upload, Landmark, Pencil, Trash2, Link2, RefreshCw, AlertTriangle } from "lucide-react";
+import { api, bankApi, errMsg, type Account, type AccountInput } from "../lib/api";
+import { BankConnect } from "../components/BankConnect";
+import { fmtDate } from "../lib/format";
 import { money, parseMoney } from "../lib/format";
 import { Field, Modal, Toast } from "../components/ui";
 import { ImportWizard } from "../components/ImportWizard";
@@ -13,16 +15,31 @@ export function Accounts({ onImported }: { onImported: () => void }) {
   const [edit, setEdit] = useState<Account | "new" | null>(null);
   const [importFor, setImportFor] = useState<string | null | undefined>(undefined);
   const [toast, setToast] = useState<string | null>(null);
+  const [connect, setConnect] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const load = useCallback(() => api.accounts().then(setAccounts).catch(console.error), []);
   useEffect(() => { load(); }, [load]);
 
   const total = accounts.reduce((s, a) => s + a.balance_cents, 0);
+  const linked = accounts.filter((a) => a.provider === "enablebanking");
+  const soon = (d: string | null) => !!d && new Date(d).getTime() - Date.now() < 14 * 864e5;
+
+  async function sync() {
+    setSyncing(true);
+    try {
+      const r = await bankApi.sync();
+      const errs = r.filter((x) => x.error);
+      setToast(errs.length ? `${errs[0].account}: ${errs[0].error}` : `Sincronizado · ${r.reduce((s, x) => s + x.inserted, 0)} movimientos nuevos`);
+      load(); onImported();
+    } catch (e) { setToast(errMsg(e)); } finally { setSyncing(false); }
+  }
 
   return (
     <div className="page">
       <header className="top">
         <div><h1>Cuentas y bancos</h1><div className="muted">{accounts.length} cuentas · <span className="num">{money(total)}</span></div></div>
         <div className="row-gap">
+          {linked.length > 0 && <button className="btn g" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "spin" : ""} />{syncing ? "Sincronizando…" : "Sincronizar"}</button>}
           <button className="btn g" onClick={() => setEdit("new")}><Plus size={16} />Cuenta manual</button>
           <button className="btn p" onClick={() => setImportFor(null)}><Upload size={16} />Importar extracto</button>
         </div>
@@ -30,8 +47,8 @@ export function Accounts({ onImported }: { onImported: () => void }) {
 
       <section className="card connect">
         <Link2 size={22} />
-        <div className="grow"><b>Conexión directa con tu banco</b><div className="muted small">Sincronización automática de solo lectura (PSD2) con Openbank, BBVA, Revolut y más. Disponible próximamente; mientras tanto, importa extractos.</div></div>
-        <button className="btn g" disabled>Conectar banco</button>
+        <div className="grow"><b>Conexión directa con tu banco <span className="chip">Beta</span></b><div className="muted small">Sincronización de solo lectura (PSD2) con Openbank, BBVA, Revolut y muchos más bancos europeos, a través de Enable Banking.</div></div>
+        <button className="btn p" onClick={() => setConnect(true)}>Conectar banco</button>
       </section>
 
       <div className="acc-grid">
@@ -43,6 +60,9 @@ export function Accounts({ onImported }: { onImported: () => void }) {
               <button className="icon-btn" onClick={() => setEdit(a)} aria-label="Editar"><Pencil size={16} /></button>
             </div>
             <div className="acc-bal num">{money(a.balance_cents)}</div>
+            {a.provider === "enablebanking" && soon(a.consent_expires_at) && (
+              <button className="banner warn clickable small" onClick={() => setConnect(true)}><AlertTriangle size={14} />El acceso caduca el {fmtDate(a.consent_expires_at!.slice(0, 10))}. Renovar</button>
+            )}
             <div className="acc-foot">
               <span className="chip">{PROVIDER[a.provider] ?? a.provider}</span>
               <button className="link" onClick={() => setImportFor(a.id)}>Importar extracto</button>
@@ -65,6 +85,7 @@ export function Accounts({ onImported }: { onImported: () => void }) {
         <ImportWizard accounts={accounts} defaultAccountId={importFor ?? undefined} onClose={() => setImportFor(undefined)}
           onDone={() => { setImportFor(undefined); load(); onImported(); }} />
       )}
+      {connect && <BankConnect onClose={() => setConnect(false)} onDone={() => { setConnect(false); load(); onImported(); }} />}
       {toast && <Toast msg={toast} onDone={() => setToast(null)} />}
     </div>
   );

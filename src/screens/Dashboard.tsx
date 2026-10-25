@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Upload, Landmark, FileSpreadsheet, AlertTriangle, CalendarClock } from "lucide-react";
-import { api, api2, type Account, type BudgetRow, type Dashboard as D, type Goal, type Recurring, type TxRow, type Category } from "../lib/api";
+import { Upload, Landmark, FileSpreadsheet, AlertTriangle, CalendarClock, RefreshCw } from "lucide-react";
+import { api, api2, bankApi, type Account, type BudgetRow, type Dashboard as D, type Goal, type Recurring, type TxRow, type Category } from "../lib/api";
 import { fmtDate, fmtMonthShort, greeting, money, today } from "../lib/format";
 import { CatIcon } from "../components/ui";
 import { Donut, LineArea, Progress, Ring } from "../components/charts";
@@ -15,7 +15,7 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [cats, setCats] = useState<Record<string, Category>>({});
 
-  useEffect(() => {
+  const load = () => {
     api2.dashboard().then((x) => {
       setD(x);
       if (x.accounts === 0) return;
@@ -26,7 +26,23 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
     api.txList({ limit: 6 }).then((p) => setRecent(p.items));
     api2.goals().then(setGoals);
     api.categories().then((c) => setCats(Object.fromEntries(c.map((x) => [x.id, x]))));
-  }, []);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, []);
+
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const linked = accounts.filter((a) => a.provider === "enablebanking");
+  const expiring = linked.filter((a) => a.consent_expires_at && new Date(a.consent_expires_at).getTime() - Date.now() < 14 * 864e5);
+  async function sync() {
+    setSyncing(true);
+    try {
+      const r = await bankApi.sync();
+      const e = r.find((x) => x.error);
+      setSyncMsg(e ? `${e.account}: ${e.error}` : null);
+      if (r.some((x) => x.inserted > 0)) load();
+    } catch (e) { setSyncMsg(String(e)); } finally { setSyncing(false); }
+  }
 
   if (!d) return null;
   const empty = d.accounts === 0;
@@ -46,6 +62,7 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
         </div>
         <div className="row-gap">
           <button className="btn g" onClick={() => onNav("cuentas")}><Upload size={16} />Importar extracto</button>
+          {linked.length > 0 && <button className="btn p" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "spin" : ""} />{syncing ? "Sincronizando…" : "Sincronizar bancos"}</button>}
         </div>
       </header>
 
@@ -64,6 +81,12 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
         </section>
       ) : (
         <>
+          {syncMsg && <div className="banner warn"><AlertTriangle size={16} />{syncMsg}</div>}
+          {expiring.length > 0 && (
+            <div className="banner warn clickable" onClick={() => onNav("cuentas")}>
+              <AlertTriangle size={16} /><span><b>El acceso a {expiring[0].institution} caduca el {fmtDate(expiring[0].consent_expires_at!.slice(0, 10))}.</b> Renueva el consentimiento para seguir sincronizando.</span>
+            </div>
+          )}
           {d.uncategorized > 0 && (
             <div className="banner warn clickable" onClick={() => onNav("movimientos", { kind: "uncategorized" })}>
               <AlertTriangle size={16} /><span><b>{d.uncategorized} movimientos sin categoría.</b> Categorízalos para que los informes sean precisos.</span>

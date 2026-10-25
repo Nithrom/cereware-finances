@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { save, open } from "@tauri-apps/plugin-dialog";
-import { ShieldCheck, Download, Upload, KeyRound, Tags, Wand2, Trash2, Plus } from "lucide-react";
+import { ShieldCheck, Download, Upload, KeyRound, Tags, Wand2, Trash2, Plus, Landmark } from "lucide-react";
+import { bankApi, type BankConfigView } from "../lib/api";
+import { BankConfigForm } from "../components/BankConnect";
 import { api, api2, errMsg, type Category, type RuleRow } from "../lib/api";
 import { CatIcon, CategoryPicker, Field, Modal, Toast } from "../components/ui";
 import { getAutolock, setAutolock } from "../lib/autolock";
@@ -15,6 +17,9 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
   const [showSys, setShowSys] = useState(false);
   const [newRule, setNewRule] = useState<{ text: string; cat: string | null } | null>(null);
   const [catEdit, setCatEdit] = useState<Category | "new" | null>(null);
+  const [bankCfg, setBankCfg] = useState<BankConfigView | null>(null);
+  const [bankEdit, setBankEdit] = useState(false);
+  useEffect(() => { bankApi.config().then(setBankCfg); }, []);
 
   const loadRules = () => api.rules().then(setRules);
   const loadCats = () => api.categories().then(setCats);
@@ -65,6 +70,14 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
       </section>
 
       <section className="card settings-sec">
+        <h3><Landmark size={18} />Conexión bancaria</h3>
+        <div className="set-row">
+          <div><b>Enable Banking</b><div className="muted small">{bankCfg?.has_key ? `Configurado · ${bankCfg.app_id.slice(0, 8)}…` : "Sin configurar. Necesario para sincronizar con tu banco."}</div></div>
+          <button className="btn g" onClick={() => setBankEdit(true)}><KeyRound size={16} />{bankCfg?.has_key ? "Editar" : "Configurar"}</button>
+        </div>
+      </section>
+
+      <section className="card settings-sec">
         <h3><Tags size={18} />Categorías <button className="btn g sm ml" onClick={() => setCatEdit("new")}><Plus size={14} />Nueva</button></h3>
         <div className="cat-grid">
           {cats.filter((c) => !c.parent_id).map((p) => (
@@ -110,6 +123,7 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
         </Modal>
       )}
       {catEdit && <CategoryForm cat={catEdit === "new" ? null : catEdit} cats={cats} onClose={() => setCatEdit(null)} onSaved={() => { setCatEdit(null); loadCats(); }} />}
+      {bankEdit && <BankConfigForm cfg={bankCfg} onClose={() => setBankEdit(false)} onSaved={() => { setBankEdit(false); bankApi.config().then(setBankCfg); setToast("Credenciales guardadas"); }} />}
       {toast && <Toast msg={toast} onDone={() => setToast(null)} />}
     </div>
   );

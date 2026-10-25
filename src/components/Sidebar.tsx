@@ -34,6 +34,7 @@ type Props = {
 };
 
 export function Sidebar({ route, onRoute, theme, onTheme, onLock }: Props) {
+  const eff = theme === "system" ? document.documentElement.dataset.theme : theme;
   return (
     <aside className="sidebar">
       <div className="sidebar-brand"><Logo /></div>
@@ -52,7 +53,7 @@ export function Sidebar({ route, onRoute, theme, onTheme, onLock }: Props) {
         <button className="nav" onClick={onLock}><Lock size={18} />Bloquear</button>
         <div className="seg">
           {THEMES.map((t) => (
-            <button key={t.id} className={theme === t.id ? "on" : ""} onClick={() => onTheme(t.id)}>{t.label}</button>
+            <button key={t.id} className={eff === t.id ? "on" : ""} onClick={() => onTheme(t.id)}>{t.label}</button>
           ))}
         </div>
       </div>

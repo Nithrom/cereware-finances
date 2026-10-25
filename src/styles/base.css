@@ -119,6 +119,7 @@ textarea.input{resize:vertical;font-size:14px}
 .seg.wide button{padding:9px 0;font-size:13px;border-radius:9px}
 .top .seg{min-width:260px}
 .top .seg button{padding:7px 10px}
+.banner svg{flex:none}
 .banner{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:var(--r-lg);font-size:13px;border:1px solid transparent}
 .banner.warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
 .banner.warn b,.banner.warn svg{color:var(--warn)}
@@ -278,3 +279,17 @@ h3+.row,.row:first-child{border-top:0}
 .sys-rules{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;max-height:240px;overflow:auto}
 
 @media (max-width:1100px){.span8,.span4,.span7,.span5{grid-column:1/-1}.kpi4{grid-template-columns:repeat(2,1fr)}.map-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ---------- conexión bancaria ---------- */
+.bank-list{display:flex;flex-direction:column;gap:4px;max-height:360px;overflow:auto}
+.bank-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border:1px solid transparent;border-radius:var(--r-md);background:none;font:inherit;font-weight:600;color:var(--text);cursor:pointer;text-align:left}
+.bank-item:hover{background:var(--surface-2);border-color:var(--border)}
+.bank-item img{width:28px;height:28px;object-fit:contain;border-radius:7px;background:#fff}
+.bank-ph{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:var(--surface-2);color:var(--text-3)}
+.auth-box{display:flex;gap:14px;align-items:center;padding:16px;border-radius:var(--r-lg);background:var(--primary-soft)}
+.auth-box>svg{color:var(--brand-cherry);flex:none}
+.steps{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;color:var(--text-2)}
+code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(--surface-2);padding:2px 6px;border-radius:6px}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.acc .banner{padding:8px 10px;font:inherit;font-size:12px;text-align:left}

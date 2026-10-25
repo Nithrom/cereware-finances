@@ -132,3 +132,17 @@ export const api2 = {
   categoryUpsert: (id: string | null, input: CategoryInput) => invoke<string>("category_upsert", { id, input }),
   categoryDelete: (id: string) => invoke<void>("category_delete", { id }),
 };
+
+// ---------------------------------------------------------------- conexión bancaria
+export type BankConfigView = { app_id: string; has_key: boolean; redirect_url: string };
+export type Aspsp = { name: string; country: string; logo: string | null; max_consent_days: number | null };
+export type SyncResult = { account: string; inserted: number; error: string | null };
+export const bankApi = {
+  config: () => invoke<BankConfigView | null>("bank_config_get"),
+  configSet: (appId: string, keyPath: string | null, redirectUrl: string) => invoke<void>("bank_config_set", { appId, keyPath, redirectUrl }),
+  aspsps: (country: string) => invoke<Aspsp[]>("bank_aspsps", { country }),
+  start: (name: string, country: string, days: number) => invoke<{ url: string; state: string; auto_capture: boolean }>("bank_connect_start", { name, country, days }),
+  poll: () => invoke<string | null>("bank_connect_poll"),
+  finish: (codeOrUrl: string, institution: string) => invoke<{ accounts: string[]; imported: number }>("bank_connect_finish", { codeOrUrl, institution }),
+  sync: () => invoke<SyncResult[]>("bank_sync"),
+};
