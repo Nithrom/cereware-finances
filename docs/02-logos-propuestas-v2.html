@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CereWare Finances · Logos v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F7F6F4;--card:#FFF;--ink:#16211F;--mute:#6B6866;--line:#E8E5E1}
+:root[data-theme=dark]{--bg:#17161A;--card:#211F24;--ink:#F2EFEC;--mute:#A6A19C;--line:#312E33}
+:root[data-theme=oled]{--bg:#000;--card:#0A0909;--ink:#EEEAE6;--mute:#8F8A85;--line:#1C1A1A}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:'Plus Jakarta Sans',system-ui,sans-serif;padding:24px 16px 60px}
+.wrap{max-width:1180px;margin:auto}h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:32px 0 12px}p{color:var(--mute);margin:0 0 12px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;align-items:center}.bar small{color:var(--mute);font-weight:700;width:70px}
+button{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 13px;border-radius:999px;cursor:pointer}button.on{background:var(--ink);color:var(--bg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}
+svg.icon{width:100%;max-width:160px;display:block;margin:6px auto 10px}
+.tag{font-weight:800;font-size:15px}.sub{font-size:13px;color:var(--mute)}
+.lock{display:flex;align-items:center;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.lock svg{width:58px;flex:none}
+.wm b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1}.wm span{font-size:11px;font-weight:700;letter-spacing:.42em}
+.sw{display:flex;gap:6px;margin:10px 0}.sw i{flex:1;height:30px;border-radius:9px}
+</style></head><body><div class="wrap">
+<h1>CereWare Finances: logos (segunda tanda)</h1>
+<p>Estilo Reach: C oscura, letra en color plano y cereza roja lisa. Hay 5 posiciones nuevas para la cereza, la letra puede ser F o f y hay 5 paletas.</p>
+<div class="bar" id="themes"><small>Tema</small><button data-t="light" class="on">Claro</button><button data-t="dark">Oscuro</button><button data-t="oled">OLED</button></div>
+<div class="bar" id="letters"></div>
+<div class="bar" id="pals"></div>
+<h2>Posiciones de la cereza</h2><div class="grid" id="concepts"></div>
+<h2>Paletas aplicadas a la posición elegida</h2><div class="bar" id="cbar"></div><div class="grid" id="palettes"></div>
+</div>
+<script>
+const P={
+ vino:{n:'Vino',d:'Letra vino tinto y cereza roja viva. Elegante y cálida.',L:'#9F1239',Ld:'#FB7185',ch:'#E5383B',lf:'#9F1239',lfd:'#FB7185',x:['#F59E0B','#14B8A6','#6366F1','#EC4899']},
+ granate:{n:'Granate y oro',d:'Granate oscuro con hoja dorada. Premium, muy "ahorro".',L:'#7F1D1D',Ld:'#FCA5A5',ch:'#DC2626',lf:'#B8860B',lfd:'#E8B931',x:['#E8B931','#0EA5E9','#22C55E','#A855F7']},
+ hoja:{n:'Hoja verde',d:'Verde hoja y cereza roja: la cereza natural, dinero que crece.',L:'#15803D',Ld:'#4ADE80',ch:'#DC2626',lf:'#15803D',lfd:'#4ADE80',x:['#F59E0B','#3B82F6','#EC4899','#8B5CF6']},
+ noche:{n:'Azul noche',d:'Azul profundo y rojo cereza. Confianza bancaria con chispa.',L:'#1E40AF',Ld:'#93C5FD',ch:'#E11D48',lf:'#1E40AF',lfd:'#93C5FD',x:['#F59E0B','#10B981','#F472B6','#06B6D4']},
+ ciruela:{n:'Ciruela',d:'Morado ciruela y rojo: frutal y distinto.',L:'#6B21A8',Ld:'#D8B4FE',ch:'#E11D48',lf:'#6B21A8',lfd:'#D8B4FE',x:['#F59E0B','#14B8A6','#3B82F6','#FB7185']}
+};
+const LT={
+ F:{n:'F mayúscula',p:'M45 75V30h24M45 52h18',T:[69,30],M:[63,52],K:[45,30]},
+ f:{n:'f minúscula',p:'M50 76V40a12 12 0 0 1 12-12h5M41 50h20',T:[67,28],M:[61,50],K:[50,38]}
+};
+const leaf=(x,y,a=-20)=>`<path d="M${x} ${y}c6-2 11 0 13 5-6 2-11 1-13-5z" fill="LF" transform="rotate(${a} ${x} ${y})"/>`;
+const cherry=(x,y,r=8.5)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="CH"/><circle cx="${x-r*.33}" cy="${y-r*.33}" r="${r*.25}" fill="#fff" opacity=".5"/>`;
+const C={
+ par:{n:'1 · Par de cerezas',d:'Dos cerezas cuelgan del brazo superior de la F.',g:l=>{const[x,y]=l.T;return `<path d="M${x} ${y}c-2 10-5 20-6 30M${x} ${y}c4 9 9 17 11 25" fill="none" stroke="LF" stroke-width="3" stroke-linecap="round"/>${leaf(x,y,-35)}${cherry(x-6,y+35,7)}${cherry(x+11,y+30,7)}`}},
+ medio:{n:'2 · Del brazo central',d:'La cereza cuelga del brazo central y ocupa el hueco inferior.',g:l=>{const[x,y]=l.M;return `<path d="M${x} ${y}c6 3 10 9 11 18" fill="none" stroke="LF" stroke-width="3" stroke-linecap="round"/>${leaf(x,y,-25)}${cherry(x+11,y+24)}`}},
+ cabajo:{n:'3 · Remate de la C (abajo)',d:'La propia C termina en la cereza, con rabo y hoja.',g:l=>`<path d="M66 78c3-7 7-11 13-12" fill="none" stroke="LF" stroke-width="3" stroke-linecap="round"/>${leaf(79,66,-30)}${cherry(62,77,9)}`},
+ carriba:{n:'4 · Remate de la C (arriba)',d:'La cereza corona la punta superior de la C.',g:l=>`<path d="M61 13c1-5 4-8 10-9" fill="none" stroke="LF" stroke-width="3" stroke-linecap="round"/>${leaf(71,4,0)}${cherry(60,20,8.5)}`},
+ dentro:{n:'5 · Dentro de la C',d:'La cereza vive dentro de la C, colgando de la letra.',g:l=>{const[x,y]=l.K;return `<path d="M${x} ${y}c-6 3-10 11-10 21" fill="none" stroke="LF" stroke-width="3" stroke-linecap="round"/>${cherry(x-11,y+28,7.5)}`}}
+};
+let pal='vino',con='par',let_='F',th='light';
+const dark=()=>th!='light';
+function svg(ck,pk,lk,cls='icon',forceTheme){const p=P[pk],l=LT[lk],d=forceTheme?forceTheme!='light':dark();
+ const ink=d?'#EEEAE6':'#16211F',L=d?p.Ld:p.L,lf=d?p.lfd:p.lf;
+ let inner=C[ck].g(l).replaceAll('CH',p.ch).replaceAll('LF',lf);
+ const cPath='M60 21a30 30 0 1 0 0 54';
+ return `<svg class="${cls}" viewBox="10 2 92 96">
+ <path d="${cPath}" fill="none" stroke="${ink}" stroke-width="9" stroke-linecap="round"/>
+ <path d="${l.p}" fill="none" stroke="${L}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>${inner}</svg>`}
+function lock(ck,pk){return `<div class="lock">${svg(ck,pk,let_,'')}<div class="wm"><b>CereWare</b><span style="color:${P[pk].ch}">FINANCES</span></div></div>`}
+function render(){
+ concepts.innerHTML=Object.keys(C).map(k=>`<div class="card"><div class="tag">${C[k].n}</div><div class="sub">${C[k].d}</div>${svg(k,pal,let_)}${lock(k,pal)}</div>`).join('');
+ palettes.innerHTML=Object.keys(P).map(k=>{const p=P[k];return `<div class="card"><div class="tag">${p.n}</div><div class="sub">${p.d}</div>${svg(con,k,let_)}
+  <div class="sw"><i style="background:${p.ch}"></i><i style="background:${dark()?p.Ld:p.L}"></i>${p.x.map(c=>`<i style="background:${c}"></i>`).join('')}</div>
+  <div class="sub">Cereza ${p.ch} · Letra ${p.L} / ${p.Ld} (oscuro) · Gráficos ${p.x.join(' ')}</div>${lock(con,k)}</div>`}).join('');
+ letters.innerHTML='<small>Letra</small>'+Object.keys(LT).map(k=>`<button data-l="${k}" class="${k==let_?'on':''}">${LT[k].n}</button>`).join('');
+ pals.innerHTML='<small>Paleta</small>'+Object.keys(P).map(k=>`<button data-p="${k}" class="${k==pal?'on':''}">${P[k].n}</button>`).join('');
+ cbar.innerHTML=Object.keys(C).map(k=>`<button data-c="${k}" class="${k==con?'on':''}">${C[k].n}</button>`).join('');
+}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.t){th=b.dataset.t;document.documentElement.dataset.theme=th;document.querySelectorAll('#themes button').forEach(x=>x.classList.toggle('on',x==b))}
+ if(b.dataset.p)pal=b.dataset.p;if(b.dataset.c)con=b.dataset.c;if(b.dataset.l)let_=b.dataset.l;render()});
+render();
+</script></body></html>

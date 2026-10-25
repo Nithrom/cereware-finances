@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CereWare Finances · Logo v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F7F6F4;--card:#FFF;--ink:#16211F;--mute:#6B6866;--line:#E8E5E1}
+:root[data-theme=dark]{--bg:#17161A;--card:#211F24;--ink:#F2EFEC;--mute:#A6A19C;--line:#312E33}
+:root[data-theme=oled]{--bg:#000;--card:#0A0909;--ink:#EEEAE6;--mute:#8F8A85;--line:#1C1A1A}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:'Plus Jakarta Sans',system-ui,sans-serif;padding:24px 16px 60px}
+.wrap{max-width:1180px;margin:auto}h1{font-size:26px;margin:0 0 4px}p{color:var(--mute);margin:0 0 12px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;align-items:center}.bar small{color:var(--mute);font-weight:700;width:70px}
+button{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 13px;border-radius:999px;cursor:pointer}button.on{background:var(--ink);color:var(--bg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}
+svg.icon{width:100%;max-width:170px;display:block;margin:6px auto 10px}
+.tag{font-weight:800;font-size:15px}.sub{font-size:13px;color:var(--mute)}
+.lock{display:flex;align-items:center;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.lock svg{width:60px;flex:none}
+.wm b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1}.wm span{font-size:11px;font-weight:700;letter-spacing:.42em}
+.small{display:flex;gap:12px;align-items:center;margin-top:10px}.small svg{width:32px}.small svg+svg{width:20px}
+</style></head><body><div class="wrap">
+<h1>Logo v3: cereza al final de la C, letra más a la derecha</h1>
+<p>4 grados de desplazamiento. Al mover la letra, la cereza se recoloca para no chocar con ella.</p>
+<div class="bar" id="themes"><small>Tema</small><button data-t="light" class="on">Claro</button><button data-t="dark">Oscuro</button><button data-t="oled">OLED</button></div>
+<div class="bar" id="letters"></div><div class="bar" id="pals"></div>
+<div class="grid" id="out"></div></div>
+<script>
+const P={vino:['Vino','#9F1239','#FB7185'],granate:['Granate y oro','#7F1D1D','#FCA5A5','#B8860B','#E8B931'],hoja:['Hoja verde','#15803D','#4ADE80'],noche:['Azul noche','#1E40AF','#93C5FD'],ciruela:['Ciruela','#6B21A8','#D8B4FE']};
+const CH='#E5383B';
+// v: s = desplazamiento letra, cy = bajada de la cereza, short = acortar brazo inferior C
+const V=[
+ {n:'Leve (+6)',d:'La letra se separa un poco del interior de la C. La cereza solapa ligeramente su pie.',s:6,cx:61,cy:78,stem:'M65 77c4-8 9-12 15-12',leaf:[80,65,-30]},
+ {n:'Media (+11)',d:'La letra queda centrada en la abertura de la C. La cereza baja a la izquierda del pie.',s:11,cx:57,cy:80,stem:'M61 79c5-3 9-3 13 0',leaf:[74,79,10]},
+ {n:'Marcada (+16)',d:'La letra sale de la C. La C se cierra un poco y la cereza pasa a ser su remate.',s:16,cx:52,cy:80,stem:'M49 72c-2-6-6-9-11-10',leaf:[38,62,190],cEnd:'M60 21a30 30 0 1 0 -8 58'},
+ {n:'Abierta (+20)',d:'La C y la letra quedan casi separadas, como un monograma más ancho.',s:20,cx:57,cy:77,stem:'M54 69c-2-6-6-9-11-10',leaf:[43,59,190]}
+];
+const LT={F:s=>`M${45+s} 75V30h24M${45+s} 52h18`,f:s=>`M${50+s} 76V40a12 12 0 0 1 12-12h5M${41+s} 50h20`};
+let pal='vino',lt='F',th='light';
+function svg(v,cls='icon',T=th){const d=T!='light',p=P[pal],ink=d?'#EEEAE6':'#16211F',L=d?p[2]:p[1],lf=d?(p[4]||p[2]):(p[3]||p[1]);
+ const [lx,ly,la]=v.leaf,r=9;
+ return `<svg class="${cls}" viewBox="${10+v.s*.3} 4 ${92+v.s*.7} ${94+v.s*.3}"><path d="${v.cEnd||'M60 21a30 30 0 1 0 0 54'}" fill="none" stroke="${ink}" stroke-width="9" stroke-linecap="round"/>
+ <path d="${LT[lt](v.s)}" fill="none" stroke="${L}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+ <path d="${v.stem}" fill="none" stroke="${lf}" stroke-width="3" stroke-linecap="round"/>
+ <path d="M${lx} ${ly}c6-2 11 0 13 5-6 2-11 1-13-5z" fill="${lf}" transform="rotate(${la} ${lx} ${ly})"/>
+ <circle cx="${v.cx}" cy="${v.cy}" r="${r}" fill="${CH}"/><circle cx="${v.cx-3}" cy="${v.cy-3}" r="2.2" fill="#fff" opacity=".5"/></svg>`}
+function render(){
+ out.innerHTML=V.map(v=>`<div class="card"><div class="tag">${v.n}</div><div class="sub">${v.d}</div>${svg(v)}
+ <div class="lock">${svg(v,'')}<div class="wm"><b>CereWare</b><span style="color:${CH}">FINANCES</span></div></div>
+ <div class="small sub">${svg(v,'')}${svg(v,'')} tamaño icono/favicon</div></div>`).join('');
+ letters.innerHTML='<small>Letra</small>'+['F','f'].map(k=>`<button data-l="${k}" class="${k==lt?'on':''}">${k=='F'?'F mayúscula':'f minúscula'}</button>`).join('');
+ pals.innerHTML='<small>Paleta</small>'+Object.keys(P).map(k=>`<button data-p="${k}" class="${k==pal?'on':''}">${P[k][0]}</button>`).join('');
+}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.t){th=b.dataset.t;document.documentElement.dataset.theme=th;document.querySelectorAll('#themes button').forEach(x=>x.classList.toggle('on',x==b))}
+ if(b.dataset.p)pal=b.dataset.p;if(b.dataset.l)lt=b.dataset.l;render()});
+render();
+</script></body></html>

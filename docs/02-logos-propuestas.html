@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CereWare Finances · Logos</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F7F6FB;--card:#FFFFFF;--ink:#1C1A33;--mute:#6B6880;--line:#E7E5F0}
+:root[data-theme=dark]{--bg:#16151F;--card:#1F1E2B;--ink:#F1EFFA;--mute:#A09DB5;--line:#2D2B3D}
+:root[data-theme=oled]{--bg:#000;--card:#0A0A0F;--ink:#ECEAF6;--mute:#8E8BA3;--line:#1A1925}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:'Plus Jakarta Sans',system-ui,sans-serif;padding:24px 16px 60px;transition:background .25s}
+.wrap{max-width:1180px;margin:auto}h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:36px 0 12px}p{color:var(--mute);margin:0 0 16px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}button{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer}button.on{background:var(--ink);color:var(--bg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}
+.card svg.icon{width:100%;max-width:150px;display:block;margin:6px auto 10px}
+.tag{font-weight:800;font-size:15px}.sub{font-size:13px;color:var(--mute)}
+.lock{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.lock svg{width:58px;flex:none}.wm b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1}.wm span{font-size:11px;font-weight:700;letter-spacing:.42em}
+.sw{display:flex;gap:6px;margin:10px 0}.sw i{flex:1;height:34px;border-radius:10px;display:block}
+.tiles{display:flex;gap:10px;margin-top:12px}.tile{width:64px;height:64px;border-radius:16px;display:grid;place-items:center}.tile svg{width:48px}
+</style></head><body><div class="wrap">
+<h1>CereWare Finances: propuestas de logo</h1>
+<p>4 conceptos de "Cf" con cereza × 4 paletas. La cereza usa siempre el color destacado de la app. Cambia de tema para ver cómo se ven.</p>
+<div class="bar" id="themes"><button data-t="light" class="on">Claro</button><button data-t="dark">Oscuro</button><button data-t="oled">OLED</button></div>
+<div class="bar" id="pals"></div>
+<h2>Conceptos (con la paleta seleccionada)</h2><div class="grid" id="concepts"></div>
+<h2>Paletas (con el concepto seleccionado)</h2><div class="bar" id="cbar"></div><div class="grid" id="palettes"></div>
+</div>
+<script>
+const P={
+ frambuesa:{n:'1 · Frambuesa',d:'Cereza rosa frambuesa + índigo. Cálido y moderno.',cherry:'#F43F5E',f1:'#818CF8',f2:'#4F46E5',x:['#22C55E','#F59E0B','#38BDF8']},
+ menta:{n:'2 · Menta y cereza',d:'Cereza roja clásica + verde menta (dinero que crece).',cherry:'#EF4466',f1:'#2DD4BF',f2:'#0D9488',x:['#8B5CF6','#F59E0B','#3B82F6']},
+ uva:{n:'3 · Uva',d:'Cereza violeta + azul cielo. Muy tech, fuera de lo bancario.',cherry:'#8B5CF6',f1:'#38BDF8',f2:'#2563EB',x:['#10B981','#F472B6','#FBBF24']},
+ mandarina:{n:'4 · Mandarina',d:'Cereza coral-mandarina + turquesa. La más alegre.',cherry:'#FF6B4A',f1:'#22D3EE',f2:'#0891B2',x:['#A78BFA','#34D399','#FACC15']}
+};
+const C={
+ A:{n:'A · Cereza colgante',d:'La cereza cuelga del gancho de la f.',
+   s:`<path d="M66 27c5 7 8 18 9 29" class="st" stroke-width="3"/><path d="M66 27c5-5 11-6 17-3-5 5-11 6-17 3z" class="lf"/>`,ch:[75,64]},
+ B:{n:'B · Familia Reach',d:'Cereza abajo a la derecha, igual que Reach.',
+   s:`<path d="M75 72c1-7 4-12 9-14" class="st" stroke-width="3"/><path d="M84 58c6-2 11 0 13 5-6 2-11 1-13-5z" class="lf"/>`,ch:[77,80]},
+ C:{n:'C · Travesaño-rama',d:'El travesaño de la f se alarga y sostiene la cereza.',
+   s:`<path d="M62 52c7 0 12 5 14 11" class="st" stroke-width="3"/><path d="M62 52c4-6 10-8 16-6-4 6-10 8-16 6z" class="lf"/>`,ch:[77,71]},
+ D:{n:'D · Cereza terminal',d:'La f termina en la propia cereza: un remate muy limpio.',
+   s:`<path d="M73 20c2-6 7-9 13-8-2 6-7 9-13 8z" class="lf"/>`,ch:[71,28],noHook:1}
+};
+let pal='frambuesa',con='A',th='light';
+const ink=()=>getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+function svg(ck,pk,cls='icon'){const c=C[ck],p=P[pk],id='g'+ck+pk+Math.random().toString(36).slice(2,6);
+ const fTop=c.noHook?'M50 78V42a14 14 0 0 1 14-14':'M50 78V40a13 13 0 0 1 13-13h3';
+ return `<svg class="${cls}" viewBox="8 6 94 92"><defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="0" y1="26" x2="0" y2="80"><stop offset="0" stop-color="${p.f1}"/><stop offset="1" stop-color="${p.f2}"/></linearGradient></defs>
+ <style>.st{fill:none;stroke:${p.f2};stroke-linecap:round}.lf{fill:${p.f2}}</style>
+ <path d="M58 22a30 30 0 1 0 0 54" fill="none" stroke="${ink()}" stroke-width="10" stroke-linecap="round"/>
+ <path d="${fTop}" fill="none" stroke="url(#${id})" stroke-width="10" stroke-linecap="round"/>
+ <path d="M41 52h21" fill="none" stroke="url(#${id})" stroke-width="9" stroke-linecap="round"/>
+ ${c.s}<circle cx="${c.ch[0]}" cy="${c.ch[1]}" r="8.5" fill="${p.cherry}"/><circle cx="${c.ch[0]-2.8}" cy="${c.ch[1]-2.8}" r="2.1" fill="#fff" opacity=".5"/></svg>`}
+function lock(ck,pk){return `<div class="lock">${svg(ck,pk,'')}<div class="wm"><b>CereWare</b><span style="color:${P[pk].cherry}">FINANCES</span></div></div>`}
+function render(){
+ document.getElementById('concepts').innerHTML=Object.keys(C).map(k=>`<div class="card"><div class="tag">${C[k].n}</div><div class="sub">${C[k].d}</div>${svg(k,pal)}${lock(k,pal)}
+  <div class="tiles"><div class="tile" style="background:#fff">${svg(k,pal,'').replace(/stroke="#[^"]+" stroke-width="10" stroke-linecap="round"\/>/,'stroke="#1C1A33" stroke-width="10" stroke-linecap="round"/>')}</div><div class="tile" style="background:#000">${svg(k,pal,'').replace(/stroke="#[^"]+" stroke-width="10" stroke-linecap="round"\/>/,'stroke="#ECEAF6" stroke-width="10" stroke-linecap="round"/>')}</div></div></div>`).join('');
+ document.getElementById('palettes').innerHTML=Object.keys(P).map(k=>{const p=P[k];return `<div class="card"><div class="tag">${p.n}</div><div class="sub">${p.d}</div>${svg(con,k)}
+  <div class="sw"><i style="background:${p.cherry}" title="Destacado ${p.cherry}"></i><i style="background:linear-gradient(${p.f1},${p.f2})"></i>${p.x.map(c=>`<i style="background:${c}"></i>`).join('')}</div>
+  <div class="sub">Destacado ${p.cherry} · Primario ${p.f2} · Gráficos ${p.x.join(' ')}</div>${lock(con,k)}</div>`}).join('');
+ document.getElementById('pals').innerHTML=Object.keys(P).map(k=>`<button data-p="${k}" class="${k==pal?'on':''}">${P[k].n}</button>`).join('');
+ document.getElementById('cbar').innerHTML=Object.keys(C).map(k=>`<button data-c="${k}" class="${k==con?'on':''}">${C[k].n}</button>`).join('');
+}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.t){th=b.dataset.t;document.documentElement.dataset.theme=th;document.querySelectorAll('#themes button').forEach(x=>x.classList.toggle('on',x==b))}
+ if(b.dataset.p)pal=b.dataset.p; if(b.dataset.c)con=b.dataset.c; render()});
+render();
+</script></body></html>

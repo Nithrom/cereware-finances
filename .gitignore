@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+src-tauri/target/
+src-tauri/gen/
+*.log
+.env
+.env.*
+*.db
+*.db-*
+*.cwbak
+.DS_Store
+Thumbs.db
+brand/logo/_cf-logo.zip
