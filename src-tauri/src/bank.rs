@@ -93,6 +93,25 @@ pub fn aspsps(cfg: &BankConfig, country: &str) -> Result<Vec<Aspsp>, BankError> 
         .collect())
 }
 
+/// URLs de redirección registradas en la aplicación de Enable Banking.
+pub fn allowed_redirects(cfg: &BankConfig) -> Result<Vec<String>, BankError> {
+    let v = call(cfg, "GET", "/application", None)?;
+    Ok(v["redirect_urls"].as_array().into_iter().flatten().filter_map(|u| u.as_str().map(String::from)).collect())
+}
+
+/// Elige la URL de redirección: la configurada si está registrada; si no, la primera registrada
+/// (preferiendo localhost). Devuelve también si ha cambiado.
+pub fn pick_redirect(configured: &str, allowed: &[String]) -> Option<String> {
+    let norm = |u: &str| u.trim().trim_end_matches('/').to_lowercase();
+    if allowed.is_empty() {
+        return None;
+    }
+    if let Some(a) = allowed.iter().find(|a| norm(a) == norm(configured)) {
+        return Some(a.clone());
+    }
+    allowed.iter().find(|a| a.contains("localhost") || a.contains("127.0.0.1")).or(allowed.first()).cloned()
+}
+
 pub fn start_auth(cfg: &BankConfig, name: &str, country: &str, days: i64, state: &str) -> Result<String, BankError> {
     let until = (chrono::Utc::now() + chrono::Duration::days(days.clamp(1, 180))).to_rfc3339();
     let v = call(
@@ -277,6 +296,10 @@ mod tests {
         assert_eq!(p.description, "MERCADONA · COMPRA TARJETA");
         assert_eq!(p.external_id.as_deref(), Some("E1"));
         assert!(map_tx(&json!({"transaction_amount":{"amount":"1"},"status":"PDNG","booking_date":"2026-01-01"})).is_none());
+        let allowed = vec!["https://localhost:8765/callback/".to_string(), "https://ejemplo.com/cb".to_string()];
+        assert_eq!(pick_redirect("https://localhost:8765/callback", &allowed).as_deref(), Some("https://localhost:8765/callback/"));
+        assert_eq!(pick_redirect("http://otra", &allowed).as_deref(), Some("https://localhost:8765/callback/"));
+        assert_eq!(pick_redirect("x", &[]), None);
         let cfg = BankConfig { app_id: "x".into(), private_key: "nope".into(), redirect_url: String::new() };
         assert!(matches!(jwt(&cfg), Err(BankError::BadKey)));
     }

@@ -716,21 +716,50 @@ pub struct AuthStart {
     url: String,
     state: String,
     auto_capture: bool,
+    redirect_url: String,
 }
 
 #[tauri::command]
 pub async fn bank_connect_start(state: State<'_, AppState>, name: String, country: String, days: i64) -> R<AuthStart> {
-    let cfg = bank_cfg(&state)?;
+    let mut cfg = bank_cfg(&state)?;
+    // Usa una URL de redirección realmente registrada en Enable Banking
+    let allowed = tauri::async_runtime::spawn_blocking({
+        let c = cfg.clone();
+        move || crate::bank::allowed_redirects(&c)
+    })
+    .await
+    .map_err(|_| err("Error interno"))?
+    .unwrap_or_default();
+    if let Some(r) = crate::bank::pick_redirect(&cfg.redirect_url, &allowed) {
+        if r != cfg.redirect_url {
+            cfg.redirect_url = r;
+            let saved = cfg.clone();
+            with_vault_save(&state, |v| {
+                v.conn.execute(
+                    "INSERT INTO settings(key,value) VALUES('bank_config',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    [serde_json::to_string(&saved).unwrap_or_default()],
+                )?;
+                Ok(())
+            })?;
+        }
+    }
     let st = crate::ledger::uid();
     let s2 = st.clone();
     let cfg2 = cfg.clone();
     let url = tauri::async_runtime::spawn_blocking(move || crate::bank::start_auth(&cfg2, &name, &country, days, &s2))
         .await
         .map_err(|_| err("Error interno"))?
-        .map_err(berr)?;
+        .map_err(|e| {
+            let m = e.to_string();
+            if m.contains("Redirect") && !allowed.is_empty() {
+                err(format!("{m}. URLs registradas en Enable Banking: {}. La app usa: {}", allowed.join(", "), cfg.redirect_url))
+            } else {
+                berr(e)
+            }
+        })?;
     *state.bank_code.lock().unwrap() = None;
     let auto = crate::bank::listen_for_code(&cfg.redirect_url, state.bank_code.clone());
-    Ok(AuthStart { url, state: st, auto_capture: auto })
+    Ok(AuthStart { url, state: st, auto_capture: auto, redirect_url: cfg.redirect_url })
 }
 
 #[tauri::command]

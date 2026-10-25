@@ -50,6 +50,7 @@ export function BankConnect({ onClose, onDone }: { onClose: () => void; onDone: 
     try {
       const r = await bankApi.start(b.name, b.country, Math.min(b.max_consent_days ?? 180, 180));
       setAuto(r.auto_capture);
+      if (cfg && r.redirect_url !== cfg.redirect_url) setCfg({ ...cfg, redirect_url: r.redirect_url });
       setStep("auth");
       await openUrl(r.url);
     } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
