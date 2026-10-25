@@ -48,9 +48,11 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+# Compilación rápida: LTO "thin" y varias unidades en paralelo (la versión anterior, LTO completo
+# con codegen-units = 1, tardaba muchísimo en el último paso para ganar muy poco tamaño).
 [profile.release]
-codegen-units = 1
-lto = true
+codegen-units = 16
+lto = "thin"
 opt-level = 3
 panic = "abort"
 strip = true
