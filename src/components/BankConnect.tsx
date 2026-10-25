@@ -101,7 +101,8 @@ export function BankConnect({ onClose, onDone }: { onClose: () => void; onDone: 
           {auto ? (
             <div className="row-gap muted"><Loader2 size={16} className="spin" />Esperando la autorización… volverás aquí automáticamente.</div>
           ) : (
-            <Field label="Cuando termines, pega aquí la dirección completa a la que te ha llevado el navegador" hint="Empieza por tu URL de vuelta y contiene ?code=…">
+            <Field label="Cuando termines, copia la dirección completa de la barra del navegador y pégala aquí"
+              hint={cfg?.redirect_url.startsWith("https://localhost") ? "El navegador mostrará un error de conexión al volver: es normal. Lo que importa es la dirección, que contiene ?code=…" : "Empieza por tu URL de vuelta y contiene ?code=…"}>
               <textarea className="input" rows={3} value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder={`${cfg?.redirect_url ?? "https://…"}?state=…&code=…`} />
             </Field>
           )}
@@ -120,7 +121,7 @@ export function BankConnect({ onClose, onDone }: { onClose: () => void; onDone: 
 
 export function BankConfigForm({ cfg, onClose, onSaved }: { cfg: BankConfigView | null; onClose: () => void; onSaved: () => void }) {
   const [appId, setAppId] = useState(cfg?.app_id ?? "");
-  const [redirect, setRedirect] = useState(cfg?.redirect_url ?? "http://localhost:8765/callback");
+  const [redirect, setRedirect] = useState(cfg?.redirect_url ?? "https://localhost:8765/callback");
   const [keyPath, setKeyPath] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   async function pickKey() {
@@ -139,7 +140,7 @@ export function BankConfigForm({ cfg, onClose, onSaved }: { cfg: BankConfigView 
         <div className="banner info"><KeyRound size={16} /><span>CereWare Finances usa <b>Enable Banking</b> para leer tus cuentas (PSD2). Crea gratis una aplicación con tus propias cuentas y pega aquí sus datos. Se guardan cifrados en tu almacén.</span></div>
         <ol className="steps small">
           <li>Regístrate en <button className="link" onClick={() => openUrl("https://enablebanking.com/sign-in/")}>enablebanking.com</button> y crea una aplicación en el panel (entorno <b>Production</b>).</li>
-          <li>Añade como URL de redirección: <code>{redirect || "http://localhost:8765/callback"}</code></li>
+          <li>Añade como URL de redirección: <code>{redirect || "https://localhost:8765/callback"}</code></li>
           <li>Descarga la clave privada (.pem) que genera y vincula tus cuentas propias en el panel para activar la app.</li>
           <li>Copia el <b>Application ID</b> y selecciona aquí el fichero .pem.</li>
         </ol>
@@ -148,7 +149,7 @@ export function BankConfigForm({ cfg, onClose, onSaved }: { cfg: BankConfigView 
           <div className="row-gap"><button className="btn g" onClick={pickKey}><KeyRound size={16} />{keyPath ? "Cambiar fichero" : cfg?.has_key ? "Sustituir clave guardada" : "Seleccionar fichero"}</button>
             <span className="muted small ellipsis" style={{ maxWidth: 300 }}>{keyPath ? keyPath.split(/[\\/]/).pop() : cfg?.has_key ? "Clave guardada ✓" : ""}</span></div>
         </Field>
-        <Field label="URL de redirección" hint="Debe coincidir exactamente con la registrada. Con http://localhost:PUERTO la app captura la vuelta sola; con otra URL tendrás que pegarla.">
+        <Field label="URL de redirección" hint="Debe coincidir exactamente con la registrada en Enable Banking (solo admite https). Al volver del banco tendrás que copiar la dirección del navegador y pegarla en la app.">
           <input className="input" value={redirect} onChange={(e) => setRedirect(e.target.value)} />
         </Field>
         {err && <div className="form-error">{err}</div>}
