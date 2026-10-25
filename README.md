@@ -23,7 +23,14 @@ npm run tauri build    # instalador (MSI/NSIS) en src-tauri/target/release/bundl
 
 Tests del backend: `cd src-tauri && cargo test`
 
+## Funciones
+- Importación de extractos: CSV, Excel, OFX y Norma 43 (Openbank, BBVA, Revolut y genéricos)
+- Conexión bancaria PSD2 vía Enable Banking (beta, con credenciales propias)
+- Movimientos con categorización automática y reglas aprendidas
+- Panel, presupuestos, suscripciones, huchas, previsión, modo autónomo (303/130), informes
+- Copias de seguridad cifradas, cambio de contraseña, bloqueo automático
+
 ## Estructura
 - `src/` interfaz (React): `screens/`, `components/`, `lib/`, `styles/tokens.css`
-- `src-tauri/src/` backend (Rust): `vault.rs` (cifrado), `schema.rs` (BD), `commands.rs`
+- `src-tauri/src/` backend (Rust): `vault.rs` (cifrado), `schema.rs` (BD), `import.rs` (extractos), `ledger.rs` (movimientos y reglas), `analytics.rs`, `planning.rs` (recurrentes, huchas, previsión), `fiscal.rs`, `bank.rs` (Enable Banking), `commands.rs`
 - `docs/` plan, propuestas de logo y maqueta · `brand/` logo final y tokens

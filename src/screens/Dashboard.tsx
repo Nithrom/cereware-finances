@@ -75,7 +75,7 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
               <FileSpreadsheet size={22} /><b>Importar extracto</b><span>Funciona con cualquier banco: Openbank, BBVA, Revolut…</span>
             </button>
             <button className="choice" onClick={() => onNav("cuentas")}>
-              <Landmark size={22} /><b>Conectar banco</b><span>Sincronización automática de solo lectura (próximamente)</span>
+              <Landmark size={22} /><b>Conectar banco</b><span>Sincronización de solo lectura con tu banco (beta)</span>
             </button>
           </div>
         </section>

@@ -22,7 +22,7 @@ export function Subscriptions() {
   const incomes = active.filter((r) => r.amount_cents > 0);
   const yearly = [...subs, ...bills].reduce((s, r) => s + r.yearly_cents, 0);
   const subsYearly = subs.reduce((s, r) => s + r.yearly_cents, 0);
-  const increases = active.filter((r) => r.prev_amount_cents !== null && Math.abs(r.amount_cents) > Math.abs(r.prev_amount_cents!));
+  const increases = active.filter((r) => r.is_subscription && r.prev_amount_cents !== null && Math.abs(r.amount_cents) > Math.abs(r.prev_amount_cents!));
 
   async function toggle(r: Recurring) {
     await api2.recurringSetActive(r.id, !r.active);
@@ -40,7 +40,7 @@ export function Subscriptions() {
             <b>{r.name} {r.source === "detected" && <Sparkles size={12} className="muted" aria-label="Detectado automáticamente" />}</b>
             <span>{INTERVAL[r.interval]} · próximo {fmtDate(r.next_date)}{r.account_name ? ` · ${r.account_name}` : ""}</span>
           </div>
-          {r.prev_amount_cents !== null && Math.abs(r.amount_cents) > Math.abs(r.prev_amount_cents) && (
+          {r.is_subscription && r.prev_amount_cents !== null && Math.abs(r.amount_cents) > Math.abs(r.prev_amount_cents) && (
             <span className="pill warn"><TrendingUp size={12} /> antes {money(Math.abs(r.prev_amount_cents))}</span>
           )}
           <div className="r"><div className={`a num ${r.amount_cents > 0 ? "inc" : ""}`}>{money(r.amount_cents, { sign: true })}</div><div className="muted small num">{money(Math.abs(r.yearly_cents))}/año</div></div>
