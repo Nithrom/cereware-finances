@@ -52,7 +52,7 @@ fn jwt(cfg: &BankConfig) -> Result<String, BankError> {
 
 fn call(cfg: &BankConfig, method: &str, path: &str, body: Option<Value>) -> Result<Value, BankError> {
     let token = jwt(cfg)?;
-    let req = ureq::request(method, &format!("{API}{path}")).set("Authorization", &format!("Bearer {token}")).timeout(Duration::from_secs(60));
+    let req = ureq::request(method, &format!("{API}{path}")).set("Authorization", &format!("Bearer {token}")).timeout(Duration::from_secs(30));
     let res = match body {
         Some(b) => req.send_json(b),
         None => req.call(),
@@ -221,9 +221,21 @@ pub fn map_tx(t: &Value) -> Option<ParsedTx> {
 }
 
 pub fn transactions(cfg: &BankConfig, uid: &str, date_from: &str) -> Result<Vec<ParsedTx>, BankError> {
+    match transactions_from(cfg, uid, date_from) {
+        // Algunos bancos rechazan historial largo: reintenta con 89 días
+        Err(BankError::Api(m)) if m.starts_with("4") && !m.starts_with("401") && !m.starts_with("403") => {
+            let short = (chrono::Local::now().date_naive() - chrono::Duration::days(89)).to_string();
+            if short.as_str() > date_from { transactions_from(cfg, uid, &short) } else { Err(BankError::Api(m)) }
+        }
+        r => r,
+    }
+}
+
+fn transactions_from(cfg: &BankConfig, uid: &str, date_from: &str) -> Result<Vec<ParsedTx>, BankError> {
     let mut out = Vec::new();
     let mut cont: Option<String> = None;
-    for _ in 0..50 {
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..20 {
         let mut path = format!("/accounts/{uid}/transactions?date_from={date_from}");
         if let Some(c) = &cont {
             path.push_str(&format!("&continuation_key={}", urlencode(c)));
@@ -231,8 +243,10 @@ pub fn transactions(cfg: &BankConfig, uid: &str, date_from: &str) -> Result<Vec<
         let v = call(cfg, "GET", &path, None)?;
         out.extend(v["transactions"].as_array().into_iter().flatten().filter_map(map_tx));
         cont = v["continuation_key"].as_str().filter(|s| !s.is_empty()).map(String::from);
-        if cont.is_none() {
-            break;
+        match &cont {
+            None => break,
+            Some(c) if !seen.insert(c.clone()) => break, // el banco repite página
+            _ => {}
         }
     }
     Ok(out)

@@ -22,6 +22,7 @@ export function BankConnect({ onClose, onDone }: { onClose: () => void; onDone: 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<{ accounts: string[]; imported: number } | null>(null);
+  const [rows, setRows] = useState<{ id: string; label: string; state: "wait" | "run" | "ok" | "err"; msg?: string }[]>([]);
 
   useEffect(() => { bankApi.config().then((c) => { setCfg(c); if (!c || !c.has_key) setStep("config"); }); }, []);
   useEffect(() => {
@@ -57,8 +58,29 @@ export function BankConnect({ onClose, onDone }: { onClose: () => void; onDone: 
   }
   async function finish(code: string) {
     setBusy(true); setErr(null);
-    try { setResult(await bankApi.finish(code, bank?.name ?? "")); setStep("done"); }
-    catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
+    try {
+      setResult(await bankApi.finish(code, bank?.name ?? ""));
+      setStep("done");
+      setBusy(false);
+      // Importación cuenta a cuenta con progreso
+      const linked = await bankApi.linked();
+      let list = linked.map((l) => ({ ...l, state: "wait" as const }));
+      setRows(list);
+      let total = 0;
+      for (const l of linked) {
+        list = list.map((r) => (r.id === l.id ? { ...r, state: "run" } : r)) as typeof list;
+        setRows(list);
+        try {
+          const r = await bankApi.syncAccount(l.id);
+          total += r.inserted;
+          list = list.map((x) => (x.id === l.id ? { ...x, state: r.error ? "err" : "ok", msg: r.error ?? `${r.inserted} movimientos nuevos` } : x)) as typeof list;
+        } catch (e) {
+          list = list.map((x) => (x.id === l.id ? { ...x, state: "err", msg: errMsg(e) } : x)) as typeof list;
+        }
+        setRows(list);
+      }
+      setResult((r) => (r ? { ...r, imported: total } : r));
+    } catch (e) { setErr(errMsg(e)); setBusy(false); }
   }
 
   if (cfg === undefined) return null;
@@ -66,7 +88,7 @@ export function BankConnect({ onClose, onDone }: { onClose: () => void; onDone: 
 
   return (
     <Modal title={step === "done" ? "Banco conectado" : "Conectar banco"} onClose={step === "done" ? onDone : onClose} width={640}
-      footer={step === "done" ? <button className="btn p" onClick={onDone}>Listo</button>
+      footer={step === "done" ? <button className="btn p" onClick={onDone}>{rows.some((r) => r.state === "run" || r.state === "wait") ? "Seguir en segundo plano" : "Listo"}</button>
         : step === "auth" ? <><button className="btn g" onClick={() => setStep("pick")}>Atrás</button><span className="grow" />
           {!auto && <button className="btn p" disabled={busy || !pasted.trim()} onClick={() => finish(pasted)}>{busy ? "Conectando…" : "Terminar conexión"}</button>}</>
         : <><button className="link" onClick={() => setStep("config")}>Credenciales de Enable Banking</button><span className="grow" /><button className="btn g" onClick={onClose}>Cancelar</button></>}>
@@ -112,8 +134,16 @@ export function BankConnect({ onClose, onDone }: { onClose: () => void; onDone: 
       {step === "done" && result && (
         <div className="result">
           <CheckCircle2 size={40} className="inc" />
-          <div className="center"><b>{result.accounts.length} cuentas vinculadas</b> · {result.imported} movimientos importados</div>
-          <div className="muted small center">{result.accounts.join(" · ")}</div>
+          <div className="center"><b>{result.accounts.length} cuentas vinculadas</b></div>
+          <div className="sync-rows">
+            {rows.map((r) => (
+              <div key={r.id} className="row">
+                {r.state === "run" ? <Loader2 size={16} className="spin" /> : r.state === "ok" ? <CheckCircle2 size={16} className="inc" /> : r.state === "err" ? <span className="exp">✕</span> : <span className="muted">·</span>}
+                <div className="t"><b>{r.label}</b><span className={r.state === "err" ? "exp" : ""}>{r.state === "wait" ? "En cola" : r.state === "run" ? "Descargando movimientos…" : r.msg}</span></div>
+              </div>
+            ))}
+          </div>
+          {rows.length > 0 && rows.every((r) => r.state === "ok" || r.state === "err") && <div className="muted small center">{result.imported} movimientos importados en total</div>}
         </div>
       )}
     </Modal>

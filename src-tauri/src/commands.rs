@@ -812,8 +812,8 @@ pub async fn bank_connect_finish(state: State<'_, AppState>, code_or_url: String
         }
         Ok(())
     })?;
-    let results = sync_all(&state, &cfg).await?;
-    Ok(ConnectResult { accounts: names, imported: results.iter().map(|r| r.inserted).sum() })
+    let _ = cfg;
+    Ok(ConnectResult { accounts: names, imported: 0 })
 }
 
 #[derive(Serialize)]
@@ -823,44 +823,71 @@ pub struct SyncResult {
     error: Option<String>,
 }
 
-async fn sync_all(state: &State<'_, AppState>, cfg: &crate::bank::BankConfig) -> R<Vec<SyncResult>> {
-    let accounts: Vec<(String, String, String, Option<String>)> = with_vault(state, |v| {
+type LinkedRow = (String, String, String, Option<String>);
+
+fn linked_accounts(state: &State<'_, AppState>, only: Option<&str>) -> R<Vec<LinkedRow>> {
+    with_vault(state, |v| {
         let mut st = v.conn.prepare(
             "SELECT a.id, a.provider_ref, a.institution||' · '||a.name, (SELECT MAX(booking_date) FROM transactions WHERE account_id=a.id)
-             FROM accounts a WHERE a.provider='enablebanking' AND a.archived=0",
+             FROM accounts a WHERE a.provider='enablebanking' AND a.archived=0 AND (?1 IS NULL OR a.id=?1)",
         )?;
-        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
+        let rows = st.query_map([only], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
-    })?;
-    let mut out = Vec::new();
-    for (id, uid, label, last) in accounts {
-        let from = last
-            .and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok())
-            .map(|d| d - chrono::Duration::days(7))
-            .unwrap_or_else(|| chrono::Local::now().date_naive() - chrono::Duration::days(730))
-            .to_string();
-        let cfg2 = cfg.clone();
-        let uid2 = uid.clone();
-        let fetched = tauri::async_runtime::spawn_blocking(move || -> Result<(Vec<crate::import::ParsedTx>, Option<i64>), crate::bank::BankError> {
-            let txs = crate::bank::transactions(&cfg2, &uid2, &from)?;
-            let bal = crate::bank::balance(&cfg2, &uid2)?;
-            Ok((txs, bal))
-        })
-        .await
-        .map_err(|_| err("Error interno"))?;
-        match fetched {
-            Ok((txs, bal)) => {
-                let r = with_vault_save(state, |v| {
-                    let r = crate::ledger::insert_parsed(&v.conn, &id, &txs, bal)?;
-                    v.conn.execute("UPDATE accounts SET updated_at=datetime('now') WHERE id=?", [&id])?;
-                    Ok(r)
-                })?;
-                out.push(SyncResult { account: label, inserted: r.inserted, error: None });
-            }
-            Err(e) => out.push(SyncResult { account: label, inserted: 0, error: Some(e.to_string()) }),
+    })
+}
+
+async fn sync_one(state: &State<'_, AppState>, cfg: &crate::bank::BankConfig, row: LinkedRow) -> R<SyncResult> {
+    let (id, uid, label, last) = row;
+    let from = last
+        .and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok())
+        .map(|d| d - chrono::Duration::days(7))
+        .unwrap_or_else(|| chrono::Local::now().date_naive() - chrono::Duration::days(365))
+        .to_string();
+    let cfg2 = cfg.clone();
+    let fetched = tauri::async_runtime::spawn_blocking(move || -> Result<(Vec<crate::import::ParsedTx>, Option<i64>), crate::bank::BankError> {
+        let bal = crate::bank::balance(&cfg2, &uid)?;
+        let txs = crate::bank::transactions(&cfg2, &uid, &from)?;
+        Ok((txs, bal))
+    })
+    .await
+    .map_err(|_| err("Error interno"))?;
+    Ok(match fetched {
+        Ok((txs, bal)) => {
+            let r = with_vault_save(state, |v| {
+                let r = crate::ledger::insert_parsed(&v.conn, &id, &txs, bal)?;
+                v.conn.execute("UPDATE accounts SET updated_at=datetime('now') WHERE id=?", [&id])?;
+                Ok(r)
+            })?;
+            SyncResult { account: label, inserted: r.inserted, error: None }
         }
+        Err(e) => SyncResult { account: label, inserted: 0, error: Some(e.to_string()) },
+    })
+}
+
+async fn sync_all(state: &State<'_, AppState>, cfg: &crate::bank::BankConfig) -> R<Vec<SyncResult>> {
+    let mut out = Vec::new();
+    for row in linked_accounts(state, None)? {
+        out.push(sync_one(state, cfg, row).await?);
     }
     Ok(out)
+}
+
+#[derive(Serialize)]
+pub struct LinkedView {
+    id: String,
+    label: String,
+}
+
+#[tauri::command]
+pub fn bank_linked(state: State<AppState>) -> R<Vec<LinkedView>> {
+    Ok(linked_accounts(&state, None)?.into_iter().map(|r| LinkedView { id: r.0, label: r.2 }).collect())
+}
+
+#[tauri::command]
+pub async fn bank_sync_account(state: State<'_, AppState>, id: String) -> R<SyncResult> {
+    let cfg = bank_cfg(&state)?;
+    let row = linked_accounts(&state, Some(&id))?.into_iter().next().ok_or_else(|| err("Cuenta no vinculada"))?;
+    sync_one(&state, &cfg, row).await
 }
 
 #[tauri::command]

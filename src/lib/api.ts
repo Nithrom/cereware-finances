@@ -145,4 +145,6 @@ export const bankApi = {
   poll: () => invoke<string | null>("bank_connect_poll"),
   finish: (codeOrUrl: string, institution: string) => invoke<{ accounts: string[]; imported: number }>("bank_connect_finish", { codeOrUrl, institution }),
   sync: () => invoke<SyncResult[]>("bank_sync"),
+  linked: () => invoke<{ id: string; label: string }[]>("bank_linked"),
+  syncAccount: (id: string) => invoke<SyncResult>("bank_sync_account", { id }),
 };
