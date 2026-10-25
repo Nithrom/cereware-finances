@@ -99,12 +99,10 @@ export type Forecast = {
   events: { date: string; name: string; amount_cents: number; recurring_id: string }[];
   min_cents: number; min_date: string; end_cents: number;
 };
-export type Quarter = {
-  year: number; quarter: number; deadline: string; income_count: number; expense_count: number;
-  income_base_cents: number; vat_output_cents: number; retention_cents: number; expense_base_cents: number;
-  vat_input_cents: number; non_vat_expenses_cents: number; m303_cents: number; ytd_profit_cents: number; m130_cents: number;
+export type BusinessYear = {
+  year: number; months: MonthFlow[]; income_cents: number; expense_cents: number;
+  by_category: CatSlice[]; clients: { name: string; cents: number; count: number }[];
 };
-export type FiscalConfig = { income_vat: number; income_retention: number; expense_vat: number };
 export type CategoryInput = { name: string; parent_id: string | null; kind: string; color: string; icon: string };
 
 export const api2 = {
@@ -122,9 +120,7 @@ export const api2 = {
   goalContribute: (id: string, amountCents: number) => invoke<void>("goal_contribute", { id, amountCents }),
   goalDelete: (id: string) => invoke<void>("goal_delete", { id }),
   forecast: (days: number, includeVariable: boolean) => invoke<Forecast>("forecast", { days, includeVariable }),
-  fiscalYear: (year: number) => invoke<Quarter[]>("fiscal_year", { year }),
-  fiscalConfig: () => invoke<FiscalConfig>("fiscal_config_get"),
-  fiscalConfigSet: (config: FiscalConfig) => invoke<void>("fiscal_config_set", { config }),
+  businessYear: (year: number) => invoke<BusinessYear>("business_year", { year }),
   changePassword: (current: string, newPassword: string) => invoke<void>("vault_change_password", { current, newPassword }),
   backupExport: (dest: string) => invoke<void>("backup_export", { dest }),
   backupRestore: (src: string, password: string) => invoke<void>("backup_restore", { src, password }),

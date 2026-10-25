@@ -169,6 +169,75 @@ pub fn budget_set(conn: &Connection, category_id: &str, month: Option<&str>, amo
     Ok(())
 }
 
+// ---------------------------------------------------------------- autónomo
+
+#[derive(Serialize)]
+pub struct Party {
+    pub name: String,
+    pub cents: i64,
+    pub count: i64,
+}
+
+#[derive(Serialize)]
+pub struct BusinessYear {
+    pub year: i32,
+    pub months: Vec<MonthFlow>,
+    pub income_cents: i64,
+    pub expense_cents: i64,
+    pub by_category: Vec<CatSlice>,
+    pub clients: Vec<Party>,
+}
+
+/// Ingresos y gastos de los movimientos marcados como de autónomo (sin transferencias internas).
+pub fn business_year(conn: &Connection, year: i32) -> rusqlite::Result<BusinessYear> {
+    let months: Vec<String> = (1..=12).map(|m| format!("{year}-{m:02}")).collect();
+    let mut st = conn.prepare(&format!(
+        "SELECT COALESCE(SUM(CASE WHEN t.amount_cents>0 THEN t.amount_cents END),0),
+                COALESCE(SUM(CASE WHEN t.amount_cents<0 THEN -t.amount_cents END),0)
+         FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
+         WHERE t.is_business=1 AND substr(t.booking_date,1,7)=? AND {NOT_TRANSFER}"
+    ))?;
+    let flows: Vec<MonthFlow> = months
+        .iter()
+        .map(|m| st.query_row([m], |r| Ok(MonthFlow { month: m.clone(), income_cents: r.get(0)?, expense_cents: r.get(1)? })))
+        .collect::<Result<_, _>>()?;
+    let (from, to) = (format!("{year}-01-01"), format!("{year}-12-31"));
+    let mut st = conn.prepare(&format!(
+        "SELECT COALESCE(p.id, c.id, '_none'), COALESCE(p.name, c.name, 'Sin categoría'), COALESCE(p.color, c.color, '#94A3B8'),
+                COALESCE(p.icon, c.icon, 'tag'), SUM(-t.amount_cents) s
+         FROM transactions t LEFT JOIN categories c ON c.id=t.category_id LEFT JOIN categories p ON p.id=c.parent_id
+         WHERE t.is_business=1 AND t.amount_cents<0 AND t.booking_date BETWEEN ?1 AND ?2 AND {NOT_TRANSFER}
+         GROUP BY 1 ORDER BY s DESC"
+    ))?;
+    let by_category = st
+        .query_map([&from, &to], |r| Ok(CatSlice { id: r.get(0)?, name: r.get(1)?, color: r.get(2)?, icon: r.get(3)?, cents: r.get(4)? }))?
+        .collect::<Result<_, _>>()?;
+    // Clientes: ingresos agrupados por pagador (clave del concepto)
+    let mut st = conn.prepare(&format!(
+        "SELECT t.description, t.amount_cents FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
+         WHERE t.is_business=1 AND t.amount_cents>0 AND t.booking_date BETWEEN ?1 AND ?2 AND {NOT_TRANSFER}"
+    ))?;
+    let mut map: std::collections::HashMap<String, Party> = Default::default();
+    for row in st.query_map([&from, &to], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))? {
+        let (d, a) = row?;
+        let name = d.split(" · ").next().map(crate::ledger::rule_norm).and_then(|n| crate::ledger::learn_key(&n)).unwrap_or_else(|| "Otros".into());
+        let p = map.entry(name.clone()).or_insert(Party { name, cents: 0, count: 0 });
+        p.cents += a;
+        p.count += 1;
+    }
+    let mut clients: Vec<Party> = map.into_values().collect();
+    clients.sort_by(|a, b| b.cents.cmp(&a.cents));
+    clients.truncate(10);
+    Ok(BusinessYear {
+        year,
+        income_cents: flows.iter().map(|f| f.income_cents).sum(),
+        expense_cents: flows.iter().map(|f| f.expense_cents).sum(),
+        months: flows,
+        by_category,
+        clients,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,6 +261,11 @@ mod tests {
         assert_eq!(d.by_category[0].cents, 5000);
         assert_eq!(d.balance_history.last().unwrap().value_cents, 100000);
         budget_set(&c, "alimentacion", None, Some(40000)).unwrap();
+        c.execute("UPDATE transactions SET is_business=1 WHERE category_id IN ('nomina','supermercado')", []).unwrap();
+        let y: i32 = m[..4].parse().unwrap();
+        let by = business_year(&c, y).unwrap();
+        assert_eq!((by.income_cents, by.expense_cents), (150000, 3000));
+        assert_eq!(by.clients.len(), 1);
         let b = budgets(&c, &m).unwrap();
         let al = b.iter().find(|r| r.category_id == "alimentacion").unwrap();
         assert_eq!((al.budget_cents, al.spent_cents), (Some(40000), 5000));

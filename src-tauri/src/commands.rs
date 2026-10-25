@@ -524,27 +524,11 @@ pub fn forecast(state: State<AppState>, days: i64, include_variable: bool) -> R<
     })
 }
 
-// ---------------------------------------------------------------- autónomo
+// ---------------------------------------------------------------- autónomo (resumen del negocio)
 
 #[tauri::command]
-pub fn fiscal_year(state: State<AppState>, year: i32) -> R<Vec<crate::fiscal::Quarter>> {
-    with_vault(&state, |v| Ok(crate::fiscal::year(&v.conn, year)?))
-}
-
-#[tauri::command]
-pub fn fiscal_config_get(state: State<AppState>) -> R<crate::fiscal::FiscalConfig> {
-    with_vault(&state, |v| Ok(crate::fiscal::load_config(&v.conn)))
-}
-
-#[tauri::command]
-pub fn fiscal_config_set(state: State<AppState>, config: crate::fiscal::FiscalConfig) -> R<()> {
-    with_vault_save(&state, |v| {
-        v.conn.execute(
-            "INSERT INTO settings(key,value) VALUES('fiscal',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            [serde_json::to_string(&config).unwrap_or_default()],
-        )?;
-        Ok(())
-    })
+pub fn business_year(state: State<AppState>, year: i32) -> R<crate::analytics::BusinessYear> {
+    with_vault(&state, |v| Ok(crate::analytics::business_year(&v.conn, year)?))
 }
 
 // ---------------------------------------------------------------- seguridad y datos
@@ -602,13 +586,12 @@ pub fn export_csv(state: State<AppState>, dest: String, filter: crate::ledger::T
             offset += 2000;
         }
         let mut w = csv::WriterBuilder::new().delimiter(b';').from_path(&dest).map_err(|e| err(e.to_string()))?;
-        w.write_record(["Fecha", "Cuenta", "Banco", "Concepto", "Categoría", "Importe", "Notas", "Autónomo", "IVA %"]).map_err(|e| err(e.to_string()))?;
+        w.write_record(["Fecha", "Cuenta", "Banco", "Concepto", "Categoría", "Importe", "Notas", "Autónomo"]).map_err(|e| err(e.to_string()))?;
         for t in &all {
             w.write_record([
                 t.date.clone(), t.account_name.clone(), t.institution.clone(), t.description.clone(),
                 t.category_name.clone().unwrap_or_default(), format!("{:.2}", t.amount_cents as f64 / 100.0).replace('.', ","),
                 t.notes.clone().unwrap_or_default(), if t.is_business { "Sí".into() } else { String::new() },
-                t.vat_rate.map(|v| v.to_string()).unwrap_or_default(),
             ]).map_err(|e| err(e.to_string()))?;
         }
         w.flush()?;

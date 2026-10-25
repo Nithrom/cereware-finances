@@ -208,7 +208,7 @@ h3 small{font-weight:600;color:var(--text-3);font-size:12px}
 
 /* ---------- panel ---------- */
 .hero-chip{display:inline-flex;background:rgba(255,255,255,.14);padding:4px 10px;border-radius:999px;font-weight:700;font-size:12px;position:relative}
-.span8{grid-column:span 8}.span4{grid-column:span 4}.span7{grid-column:span 7}.span5{grid-column:span 5}
+.span6{grid-column:span 6}.span8{grid-column:span 8}.span4{grid-column:span 4}.span7{grid-column:span 7}.span5{grid-column:span 5}
 .row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border);width:100%}
 h3+.row,.row:first-child{border-top:0}
 .row .t{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -278,7 +278,7 @@ h3+.row,.row:first-child{border-top:0}
 .cat-chip:hover{border-color:var(--primary)}
 .sys-rules{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;max-height:240px;overflow:auto}
 
-@media (max-width:1100px){.span8,.span4,.span7,.span5{grid-column:1/-1}.kpi4{grid-template-columns:repeat(2,1fr)}.map-grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:1100px){.span6,.span8,.span4,.span7,.span5{grid-column:1/-1}.kpi4{grid-template-columns:repeat(2,1fr)}.map-grid{grid-template-columns:repeat(2,1fr)}}
 
 /* ---------- conexión bancaria ---------- */
 .bank-list{display:flex;flex-direction:column;gap:4px;max-height:360px;overflow:auto}

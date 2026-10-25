@@ -25,7 +25,7 @@ App local de finanzas personales y de autónomo para Windows (Android después).
 5. **Suscripciones y recibos**: detección automática de periodicidad, alertas de subida de precio, coste anual.
 6. **Huchas**: objetivo + fecha, aportación sugerida, vinculables a cuenta real o virtuales.
 7. **Previsión**: movimientos programados/recurrentes, proyección de saldo 30/60/90 días, alerta de saldo bajo.
-8. **Modo autónomo**: separar personal/profesional por cuenta o movimiento, IVA repercutido/soportado y IRPF estimado por trimestre (303/130), cuota RETA, adjuntar facturas a movimientos, calendario fiscal.
+8. **Modo autónomo**: separar personal/profesional por cuenta o movimiento; resumen de ingresos, gastos, beneficio, clientes y gastos por categoría. Los impuestos (303/130) se gestionan en CereWare Invoicer.
 9. **Informes**: por categoría, periodo y comparativa interanual; exportar PDF/XLSX/CSV.
 10. **Privacidad y datos**: bloqueo por PIN/Hello, autobloqueo, backup cifrado (.cwbak), modo ocultar importes.
 

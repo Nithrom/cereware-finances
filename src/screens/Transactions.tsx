@@ -144,12 +144,10 @@ export function Transactions({ preset, onChanged }: { preset?: TxFilter; onChang
   );
 }
 
-const VAT = [{ v: -1, l: "Sin IVA" }, { v: 21, l: "21 %" }, { v: 10, l: "10 %" }, { v: 4, l: "4 %" }, { v: 0, l: "Exento (0 %)" }];
 
 function TxDetail({ tx, cats, onClose, onSaved }: { tx: TxRow; cats: Category[]; onClose: () => void; onSaved: (m: string) => void }) {
   const [notes, setNotes] = useState(tx.notes ?? "");
   const [business, setBusiness] = useState(tx.is_business);
-  const [vat, setVat] = useState(tx.vat_rate ?? -1);
   const [cat, setCat] = useState(tx.category_id);
   const [picker, setPicker] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -159,7 +157,7 @@ function TxDetail({ tx, cats, onClose, onSaved }: { tx: TxRow; cats: Category[];
   async function save() {
     try {
       await api.txUpdate(tx.id, {
-        notes, is_business: business, vat_rate: vat,
+        notes, is_business: business,
         ...(cat !== tx.category_id ? { category_id: cat, learn: cat !== null } : {}),
       });
       onSaved("Movimiento guardado");
@@ -193,16 +191,7 @@ function TxDetail({ tx, cats, onClose, onSaved }: { tx: TxRow; cats: Category[];
           </div>
         </Field>
         <Field label="Notas"><textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Añade una nota…" /></Field>
-        <div className="row2">
-          <label className="check"><input type="checkbox" checked={business} onChange={(e) => setBusiness(e.target.checked)} />Movimiento de autónomo</label>
-          {business && (
-            <Field label="IVA incluido">
-              <select className="input sm" value={vat} onChange={(e) => setVat(Number(e.target.value))}>
-                {VAT.map((v) => <option key={v.v} value={v.v}>{v.l}</option>)}
-              </select>
-            </Field>
-          )}
-        </div>
+        <label className="check"><input type="checkbox" checked={business} onChange={(e) => setBusiness(e.target.checked)} />Movimiento de autónomo</label>
         {tx.category_source === "rule" && <div className="muted small"><Sparkles size={12} /> Categorizado automáticamente por una regla.</div>}
         {err && <div className="form-error">{err}</div>}
       </div>

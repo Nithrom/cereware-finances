@@ -1,7 +1,6 @@
 mod analytics;
 mod bank;
 mod commands;
-mod fiscal;
 mod import;
 mod ledger;
 mod planning;
@@ -63,9 +62,7 @@ pub fn run() {
             commands::goal_contribute,
             commands::goal_delete,
             commands::forecast,
-            commands::fiscal_year,
-            commands::fiscal_config_get,
-            commands::fiscal_config_set,
+            commands::business_year,
             commands::vault_change_password,
             commands::backup_export,
             commands::backup_restore,
