@@ -2,9 +2,10 @@
 // Uso: node scripts/latest.mjs "Notas de la versión"
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const BASE = "https://cerezuela-software.com/cwf/";
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, "$1")), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const conf = JSON.parse(fs.readFileSync(path.join(root, "src-tauri/tauri.conf.json"), "utf8"));
 const version = conf.version;
 const out = path.join(root, "release");
