@@ -62,9 +62,10 @@ export function Settings({ onRestored, mobile = false }: { onRestored: () => voi
   const system = rules.filter((r) => !r.learned);
 
   return (
-    <div className="page narrow">
+    <div className="page settings-page">
       <header className="top"><h1>Ajustes</h1></header>
 
+      <div className="settings-grid">
       <section className="card settings-sec">
         <h3><ShieldCheck size={18} />Seguridad</h3>
         <div className="set-row">
@@ -129,6 +130,7 @@ export function Settings({ onRestored, mobile = false }: { onRestored: () => voi
           ))}
         </div>
       </section>
+      </div>
 
       <section className="card settings-sec">
         <h3><Wand2 size={18} />Reglas de categorización
@@ -136,12 +138,14 @@ export function Settings({ onRestored, mobile = false }: { onRestored: () => voi
           <button className="btn g sm" onClick={() => setNewRule({ text: "", cat: null })}><Plus size={14} />Nueva regla</button></h3>
         <div className="muted small">Las reglas aprendidas se crean al categorizar un movimiento con "Aprender" activado. Tienen prioridad sobre las del sistema.</div>
         {learned.length === 0 && <div className="muted small pad">Aún no hay reglas aprendidas.</div>}
-        {learned.map((r) => (
-          <div className="row" key={r.id}>
-            <div className="t"><b>"{r.match_value}"</b><span>→ {r.category_name ?? "—"}</span></div>
-            <button className="icon-btn" onClick={async () => { await api.ruleDelete(r.id); loadRules(); }} aria-label="Eliminar"><Trash2 size={15} /></button>
-          </div>
-        ))}
+        <div className="rules-cols">
+          {learned.map((r) => (
+            <div className="row" key={r.id}>
+              <div className="t"><b>"{r.match_value}"</b><span>→ {r.category_name ?? "—"}</span></div>
+              <button className="icon-btn" onClick={async () => { await api.ruleDelete(r.id); loadRules(); }} aria-label="Eliminar"><Trash2 size={15} /></button>
+            </div>
+          ))}
+        </div>
         <button className="link" onClick={() => setShowSys(!showSys)}>{showSys ? "Ocultar" : "Ver"} reglas del sistema ({system.length})</button>
         {showSys && <div className="sys-rules">{system.map((r) => <span key={r.id} className="chip">{r.match_value} → {r.category_name}</span>)}</div>}
       </section>

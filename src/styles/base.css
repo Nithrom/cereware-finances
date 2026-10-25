@@ -430,3 +430,11 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(-
 .cat-pill svg{vertical-align:-2px}
 .update-banner{margin:16px 24px 0}
 @media (max-width:760px){.update-banner{margin:12px 14px 0;flex-wrap:wrap}}
+/* Ajustes: dos columnas iguales; reglas a todo el ancho en tres columnas */
+.page.settings-page{max-width:1500px}
+.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:stretch}
+.settings-grid>.settings-sec{margin:0;min-width:0}
+.rules-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:24px}
+.rules-cols>.row{min-width:0}
+@media (max-width:1100px){.rules-cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.settings-grid,.rules-cols{grid-template-columns:1fr}}
