@@ -51,7 +51,7 @@ export function LockScreen({ exists, onUnlocked, mobile = false }: { exists: boo
             ? "Introduce tu contraseña para desbloquear tus finanzas."
             : "Tus datos se guardan solo en este equipo, cifrados con esta contraseña. Si la pierdes no se pueden recuperar."}
         </p>
-        <input className="input" type="password" autoFocus placeholder="Contraseña" value={pw}
+        <input className="input" type="password" autoFocus={!canBio} placeholder="Contraseña" value={pw}
           onChange={(e) => setPw(e.target.value)} disabled={busy} />
         {!exists && (
           <input className="input" type="password" placeholder="Repite la contraseña" value={pw2}
@@ -80,7 +80,7 @@ export function LockScreen({ exists, onUnlocked, mobile = false }: { exists: boo
           </footer>
         </div></div>
       )}
-      {joining && <JoinModal mobile={mobile} onClose={onUnlocked} onDone={onUnlocked} />}
+      {joining && <JoinModal mobile={mobile} onClose={onUnlocked} onDone={() => { setJoining(false); if (mobile && !bioEnabled()) setOfferBio(true); else onUnlocked(); }} />}
     </div>
   );
 }
