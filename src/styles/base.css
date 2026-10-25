@@ -28,7 +28,7 @@ h2{font-size:18px;margin:0;letter-spacing:-.01em}
 /* Estructura */
 .app{display:grid;grid-template-columns:236px 1fr;height:100%}
 .main{overflow:auto}
-.page{padding:24px 28px;display:flex;flex-direction:column;gap:18px;max-width:1240px}
+.page{padding:28px 36px;display:flex;flex-direction:column;gap:20px;max-width:1760px;margin:0 auto;width:100%}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 
 /* Barra lateral */
@@ -299,3 +299,16 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(-
 .cat-pill:disabled{opacity:.4;cursor:default}
 .inline-picker .picker{position:static;width:100%;box-shadow:none;margin-bottom:10px}
 .inline-picker .picker-list{max-height:240px}
+
+/* ---------- pantallas anchas (QHD a pantalla completa) ---------- */
+@media (min-width:1600px){
+  .app{grid-template-columns:256px 1fr}
+  .grid{gap:20px}
+  .xl-span5{grid-column:span 5}.xl-span7{grid-column:span 7}
+  .col.xl-2col{display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:20px}
+  .col.xl-2col>.card:first-child{grid-column:1/-1}
+  .acc-grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+  .tx-list .amt{width:150px}
+  .cat-pill{max-width:240px}
+  .modal{max-width:min(1100px,100%)}
+}

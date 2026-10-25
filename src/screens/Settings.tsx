@@ -6,12 +6,15 @@ import { BankConfigForm } from "../components/BankConnect";
 import { api, api2, catApi, errMsg, type Category, type RuleRow } from "../lib/api";
 import { CatIcon, CategoryPicker, Field, Modal, Toast } from "../components/ui";
 import { getAutolock, setAutolock } from "../lib/autolock";
+import { autoScale, getScale, setScale, type Scale } from "../lib/uiscale";
+import { Monitor } from "lucide-react";
 
 export function Settings({ onRestored }: { onRestored: () => void }) {
   const [toast, setToast] = useState<string | null>(null);
   const [pw, setPw] = useState(false);
   const [restore, setRestore] = useState<string | null>(null);
   const [lockMin, setLockMin] = useState(getAutolock());
+  const [scale, setScaleState] = useState<Scale>(getScale());
   const [rules, setRules] = useState<RuleRow[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
   const [showSys, setShowSys] = useState(false);
@@ -63,6 +66,17 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
           <div><b>Bloqueo automático</b><div className="muted small">Bloquea la app tras un tiempo sin usarla.</div></div>
           <select className="input sm" style={{ width: 160 }} value={lockMin} onChange={(e) => { const v = Number(e.target.value); setLockMin(v); setAutolock(v); }}>
             {[0, 5, 10, 15, 30, 60].map((m) => <option key={m} value={m}>{m === 0 ? "Nunca" : `${m} minutos`}</option>)}
+          </select>
+        </div>
+      </section>
+
+      <section className="card settings-sec">
+        <h3><Monitor size={18} />Apariencia</h3>
+        <div className="set-row">
+          <div><b>Tamaño de la interfaz</b><div className="muted small">Automático según tu pantalla ({Math.round(autoScale() * 100)} % en esta).</div></div>
+          <select className="input sm" style={{ width: 160 }} value={String(scale)} onChange={(e) => { const v: Scale = e.target.value === "auto" ? "auto" : Number(e.target.value); setScaleState(v); setScale(v); }}>
+            <option value="auto">Automático</option>
+            {[0.9, 1, 1.1, 1.25, 1.5].map((z) => <option key={z} value={String(z)}>{Math.round(z * 100)} %</option>)}
           </select>
         </div>
       </section>

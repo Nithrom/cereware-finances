@@ -134,7 +134,7 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
               ) : <div className="muted small">Sin gastos este mes.</div>}
             </div>
 
-            <div className="card span7">
+            <div className="card span7 xl-span5">
               <h3>Últimos movimientos <button className="link small" onClick={() => onNav("movimientos")}>Ver todos</button></h3>
               {recent.map((t) => {
                 const c = t.category_id ? cats[t.category_id] : undefined;
@@ -147,7 +147,7 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
                 );
               })}
             </div>
-            <div className="span5 col">
+            <div className="span5 xl-span7 col xl-2col">
               <div className="card">
                 <h3>Próximos cargos <button className="link small" onClick={() => onNav("suscripciones")}>Ver todos</button></h3>
                 {upcoming.length ? upcoming.map((r) => (

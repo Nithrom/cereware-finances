@@ -21,12 +21,12 @@ function niceRange(min: number, max: number) {
 }
 
 /** Línea con área. Los puntos desde `futureFrom` se dibujan discontinuos (previsión). */
-export function LineArea({ points, height = 210, futureFrom, labelEvery = 1, color = "var(--chart)" }: {
+export function LineArea({ points, height, futureFrom, labelEvery = 1, color = "var(--chart)" }: {
   points: { label: string; value: number; tip?: string }[]; height?: number; futureFrom?: number; labelEvery?: number; color?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const [ref, W] = useWidth();
-  const H = height, top = 12, bottom = 26;
+  const H = height ?? Math.round(Math.min(320, Math.max(200, W * 0.28))), top = 12, bottom = 26;
   const { xs, ys, lo, hi } = useMemo(() => {
     const vals = points.map((p) => p.value);
     const [lo, hi] = niceRange(Math.min(...vals, 0 < Math.min(...vals) ? Math.min(...vals) : Math.min(...vals)), Math.max(...vals));
@@ -98,11 +98,11 @@ export function Donut({ slices, total, label = "gastado", size = 160 }: { slices
   );
 }
 
-export function Bars({ data, height = 190 }: { data: { label: string; a: number; b: number }[]; height?: number }) {
+export function Bars({ data, height }: { data: { label: string; a: number; b: number }[]; height?: number }) {
   const [hover, setHover] = useState<number | null>(null);
   const [ref, W] = useWidth();
   const max = Math.max(1, ...data.flatMap((d) => [d.a, d.b]));
-  const H = height, bottom = 24, gw = W / Math.max(data.length, 1), bw = Math.min(26, gw / 3.2);
+  const H = height ?? Math.round(Math.min(300, Math.max(190, W * 0.2))), bottom = 24, gw = W / Math.max(data.length, 1), bw = Math.min(34, gw / 3.2);
   return (
     <div className="chart-box" ref={ref}>
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" onMouseLeave={() => setHover(null)}>

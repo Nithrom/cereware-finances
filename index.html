@@ -9,6 +9,9 @@
       try { var t = localStorage.getItem('cwf-theme') || 'system';
         if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.dataset.theme = t; } catch (e) {}
+      try { var z = localStorage.getItem('cwf-scale') || 'auto', w = screen.width || innerWidth;
+        if (z === 'auto') z = w >= 3400 ? 1.5 : w >= 2400 ? 1.2 : w >= 1900 ? 1.05 : 1;
+        document.documentElement.style.zoom = z; } catch (e) {}
     </script>
   </head>
   <body>
