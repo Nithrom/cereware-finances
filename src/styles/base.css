@@ -418,3 +418,4 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(-
   .more-item svg{color:var(--brand-cherry)}
 }
 @keyframes sheet{from{transform:translateY(100%)}}
+.qr{width:260px;height:260px;border-radius:16px;background:#fff;padding:10px;image-rendering:pixelated}

@@ -946,3 +946,122 @@ pub fn rules_import(state: State<AppState>, path: String) -> R<(usize, usize, Ve
 pub fn app_platform() -> &'static str {
     std::env::consts::OS
 }
+
+// ---------------------------------------------------------------- sincronización
+
+fn serr(e: crate::sync::SyncError) -> VaultError {
+    err(e.to_string())
+}
+
+#[tauri::command]
+pub fn sync_status(state: State<AppState>) -> R<crate::sync::Status> {
+    with_vault(&state, |v| Ok(crate::sync::status(&v.conn)?))
+}
+
+#[tauri::command]
+pub fn sync_code(state: State<AppState>) -> R<String> {
+    with_vault(&state, |v| {
+        let c = crate::sync::config(&v.conn)?.ok_or_else(|| serr(crate::sync::SyncError::NotConfigured))?;
+        Ok(crate::sync::pairing_code(&c))
+    })
+}
+
+#[derive(Serialize)]
+pub struct SyncRun {
+    pushed: usize,
+    pulled: usize,
+}
+
+/// Sube los cambios pendientes y descarga los remotos. La red se usa sin bloquear el almacén.
+async fn sync_run(state: &State<'_, AppState>) -> R<SyncRun> {
+    let (cfg, device, ops, max, cursor) = with_vault(state, |v| {
+        let c = crate::sync::config(&v.conn)?.ok_or_else(|| serr(crate::sync::SyncError::NotConfigured))?;
+        let (ops, max) = crate::sync::pending(&v.conn)?;
+        Ok((c, crate::sync::device(&v.conn)?, ops, max, crate::sync::cursor(&v.conn)?))
+    })?;
+    let pushed = ops.len();
+    if !ops.is_empty() {
+        let (c, d) = (cfg.clone(), device.clone());
+        tauri::async_runtime::spawn_blocking(move || -> Result<(), crate::sync::SyncError> {
+            for chunk in ops.chunks(400) {
+                crate::sync::push_blob(&c, &d, chunk)?;
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|_| err("Error interno"))?
+        .map_err(serr)?;
+        with_vault(state, |v| Ok(crate::sync::clear_log(&v.conn, max)?))?;
+    }
+    let mut pulled = 0;
+    let mut since = cursor;
+    loop {
+        let (c, d) = (cfg.clone(), device.clone());
+        let p = tauri::async_runtime::spawn_blocking(move || crate::sync::pull(&c, &d, since))
+            .await
+            .map_err(|_| err("Error interno"))?
+            .map_err(serr)?;
+        let more = p.more;
+        let last = p.last;
+        pulled += with_vault_save(state, |v| {
+            let n = crate::sync::apply(&v.conn, &p.ops)?;
+            crate::sync::set_cursor(&v.conn, last)?;
+            Ok(n)
+        })?;
+        since = last;
+        if !more {
+            break;
+        }
+    }
+    with_vault_save(state, |v| Ok(crate::sync::mark_synced(&v.conn)?))?;
+    Ok(SyncRun { pushed, pulled })
+}
+
+#[tauri::command]
+pub async fn sync_now(state: State<'_, AppState>) -> R<SyncRun> {
+    sync_run(&state).await
+}
+
+/// Activa la sincronización en este dispositivo (el primero) y sube todos los datos.
+#[tauri::command]
+pub async fn sync_enable(state: State<'_, AppState>, server: String) -> R<String> {
+    if !server.starts_with("https://") && !server.starts_with("http://") {
+        return Err(err("La dirección del servidor debe empezar por https://"));
+    }
+    let code = with_vault_save(&state, |v| Ok(crate::sync::pairing_code(&crate::sync::enable_new(&v.conn, &server)?)))?;
+    if let Err(e) = sync_run(&state).await {
+        with_vault_save(&state, |v| Ok(crate::sync::disable(&v.conn)?))?;
+        return Err(e);
+    }
+    Ok(code)
+}
+
+/// Une este dispositivo a una sincronización existente con el código del QR.
+#[tauri::command]
+pub async fn sync_join(state: State<'_, AppState>, code: String) -> R<SyncRun> {
+    let cfg = crate::sync::parse_code(&code).map_err(serr)?;
+    with_vault_save(&state, |v| Ok(crate::sync::join(&v.conn, &cfg)?))?;
+    match sync_run(&state).await {
+        Ok(r) => {
+            with_vault_save(&state, |v| Ok(crate::sync::start_tracking(&v.conn)?))?;
+            Ok(r)
+        }
+        Err(e) => {
+            with_vault_save(&state, |v| Ok(crate::sync::disable(&v.conn)?))?;
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn sync_disable(state: State<AppState>) -> R<()> {
+    with_vault_save(&state, |v| Ok(crate::sync::disable(&v.conn)?))
+}
+
+/// Comprueba la contraseña sin bloquear el almacén.
+#[tauri::command]
+pub async fn vault_verify(state: State<'_, AppState>, password: String) -> R<bool> {
+    let g = state.vault.lock().unwrap();
+    let v = g.as_ref().ok_or(VaultError::Locked)?;
+    Ok(v.verify(&password))
+}

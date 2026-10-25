@@ -38,6 +38,9 @@
       "icons/icon.ico"
     ],
     "publisher": "CereWare",
-    "shortDescription": "Finanzas personales y de aut\u00f3nomo"
+    "shortDescription": "Finanzas personales y de aut\u00f3nomo",
+    "android": {
+      "minSdkVersion": 28
+    }
   }
 }

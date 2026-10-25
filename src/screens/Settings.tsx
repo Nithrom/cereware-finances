@@ -3,18 +3,23 @@ import { save, open } from "@tauri-apps/plugin-dialog";
 import { ShieldCheck, Download, Upload, KeyRound, Tags, Wand2, Trash2, Plus, Landmark } from "lucide-react";
 import { bankApi, type BankConfigView } from "../lib/api";
 import { BankConfigForm } from "../components/BankConnect";
+import { SyncSection } from "../components/SyncPanel";
+import { bioDisable, bioEnable, bioEnabled } from "../lib/biometric";
+import { invoke } from "@tauri-apps/api/core";
 import { api, api2, catApi, errMsg, type Category, type RuleRow } from "../lib/api";
 import { CatIcon, CategoryPicker, Field, Modal, Toast } from "../components/ui";
 import { getAutolock, setAutolock } from "../lib/autolock";
 import { autoScale, getScale, setScale, type Scale } from "../lib/uiscale";
 import { Monitor } from "lucide-react";
 
-export function Settings({ onRestored }: { onRestored: () => void }) {
+export function Settings({ onRestored, mobile = false }: { onRestored: () => void; mobile?: boolean }) {
   const [toast, setToast] = useState<string | null>(null);
   const [pw, setPw] = useState(false);
   const [restore, setRestore] = useState<string | null>(null);
   const [lockMin, setLockMin] = useState(getAutolock());
   const [scale, setScaleState] = useState<Scale>(getScale());
+  const [bio, setBio] = useState(bioEnabled());
+  const [bioPw, setBioPw] = useState(false);
   const [rules, setRules] = useState<RuleRow[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
   const [showSys, setShowSys] = useState(false);
@@ -62,6 +67,12 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
           <div><b>Contraseña</b><div className="muted small">Cifra todos tus datos. Si la olvidas no se pueden recuperar.</div></div>
           <button className="btn g" onClick={() => setPw(true)}><KeyRound size={16} />Cambiar</button>
         </div>
+        {mobile && (
+          <div className="set-row">
+            <div><b>Desbloqueo con huella o cara</b><div className="muted small">La contraseña se guarda cifrada en el almacén seguro del móvil.</div></div>
+            <button className="btn g" onClick={async () => { if (bio) { await bioDisable(); setBio(false); setToast("Desbloqueo biométrico desactivado"); } else setBioPw(true); }}>{bio ? "Desactivar" : "Activar"}</button>
+          </div>
+        )}
         <div className="set-row">
           <div><b>Bloqueo automático</b><div className="muted small">Bloquea la app tras un tiempo sin usarla.</div></div>
           <select className="input sm" style={{ width: 160 }} value={lockMin} onChange={(e) => { const v = Number(e.target.value); setLockMin(v); setAutolock(v); }}>
@@ -92,6 +103,8 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
           <button className="btn g" onClick={pickRestore}><Upload size={16} />Restaurar</button>
         </div>
       </section>
+
+      <SyncSection onToast={setToast} mobile={mobile} />
 
       <section className="card settings-sec">
         <h3><Landmark size={18} />Conexión bancaria</h3>
@@ -131,7 +144,11 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
 
       <div className="muted small center">CereWare Finances 0.1.0 · Tus datos solo se guardan en este equipo.</div>
 
-      {pw && <PasswordForm onClose={() => setPw(false)} onDone={() => { setPw(false); setToast("Contraseña cambiada"); }} />}
+      {pw && <PasswordForm onClose={() => setPw(false)} onDone={async (newPw) => {
+        setPw(false); setToast("Contraseña cambiada");
+        if (mobile && bioEnabled()) { try { await bioEnable(newPw); } catch { await bioDisable(); setBio(false); } }
+      }} />}
+      {bioPw && <BioForm onClose={() => setBioPw(false)} onDone={() => { setBioPw(false); setBio(true); setToast("Desbloqueo con huella activado"); }} />}
       {restore && <RestoreForm path={restore} onClose={() => setRestore(null)} onDone={() => { setRestore(null); onRestored(); }} />}
       {newRule && (
         <Modal title="Nueva regla" onClose={() => setNewRule(null)} footer={<><button className="btn g" onClick={() => setNewRule(null)}>Cancelar</button>
@@ -166,14 +183,34 @@ function RulePicker({ cats, value, onChange }: { cats: Category[]; value: string
   );
 }
 
-function PasswordForm({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function BioForm({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  async function go() {
+    try {
+      if (!(await invoke<boolean>("vault_verify", { password: pw }))) return setErr("Contraseña incorrecta");
+      await bioEnable(pw); onDone();
+    }
+    catch (e) { setErr(errMsg(e)); }
+  }
+  return (
+    <Modal title="Activar huella o cara" onClose={onClose} width={420} footer={<><button className="btn g" onClick={onClose}>Cancelar</button><button className="btn p" onClick={go} disabled={!pw}>Activar</button></>}>
+      <div className="stack">
+        <Field label="Confirma tu contraseña"><input type="password" className="input" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} /></Field>
+        {err && <div className="form-error">{err}</div>}
+      </div>
+    </Modal>
+  );
+}
+
+function PasswordForm({ onClose, onDone }: { onClose: () => void; onDone: (newPassword: string) => void }) {
   const [f, setF] = useState({ cur: "", n1: "", n2: "" });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   async function go() {
     if (f.n1 !== f.n2) return setErr("Las contraseñas nuevas no coinciden");
     setBusy(true);
-    try { await api2.changePassword(f.cur, f.n1); onDone(); } catch (e) { setErr(errMsg(e)); setBusy(false); }
+    try { await api2.changePassword(f.cur, f.n1); onDone(f.n1); } catch (e) { setErr(errMsg(e)); setBusy(false); }
   }
   return (
     <Modal title="Cambiar contraseña" onClose={onClose} width={420} footer={<><button className="btn g" onClick={onClose}>Cancelar</button><button className="btn p" onClick={go} disabled={busy}>{busy ? "Cifrando…" : "Cambiar"}</button></>}>

@@ -39,6 +39,10 @@ ureq = { version = "2", features = ["json"] }
 jsonwebtoken = "9"
 
 
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-barcode-scanner = "2"
+tauri-plugin-keystore = "=2.1.0-alpha.2"
+
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1

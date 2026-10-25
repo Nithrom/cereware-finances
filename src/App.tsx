@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type TxFilter, type VaultStatus } from "./lib/api";
 import { useTheme } from "./lib/theme";
 import { useAutolock } from "./lib/autolock";
+import { useAutoSync } from "./lib/sync";
 import { Sidebar, BottomNav, type Route } from "./components/Sidebar";
 import { invoke } from "@tauri-apps/api/core";
 import { TitleBar } from "./components/TitleBar";
@@ -34,9 +35,16 @@ export default function App() {
   useEffect(refresh, [refresh]);
   const lock = useCallback(async () => { await api.vaultLock(); setRoute("panel"); refresh(); }, [refresh]);
   useAutolock(!!status?.unlocked, lock);
+  useAutoSync(!!status?.unlocked);
+  // Si llegan cambios de otro dispositivo, refresca la pantalla
+  useEffect(() => {
+    const h = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.state === "ok" && d.pulled > 0) setVersion((v) => v + 1); };
+    window.addEventListener("cwf-sync", h);
+    return () => window.removeEventListener("cwf-sync", h);
+  }, []);
 
   if (!status) return <div className={shell}><Bar /></div>;
-  if (!status.unlocked) return <div className={shell}><Bar /><div className="shell-body"><LockScreen exists={status.exists} onUnlocked={refresh} /></div></div>;
+  if (!status.unlocked) return <div className={shell}><Bar /><div className="shell-body"><LockScreen exists={status.exists} onUnlocked={refresh} mobile={mobile} /></div></div>;
 
   const nav: Nav = (r, p) => { setPreset(p); setRoute(r); document.querySelector(".main")?.scrollTo(0, 0); };
   const bump = () => setVersion((v) => v + 1);
@@ -52,7 +60,7 @@ export default function App() {
     case "autonomo": screen = <Freelance onNav={nav} />; break;
     case "informes": screen = <Reports onNav={nav} />; break;
     case "cuentas": screen = <Accounts onImported={bump} />; break;
-    case "ajustes": screen = <Settings onRestored={() => { bump(); nav("panel"); }} />; break;
+    case "ajustes": screen = <Settings mobile={mobile} onRestored={() => { bump(); nav("panel"); }} />; break;
   }
 
   return (
@@ -60,7 +68,7 @@ export default function App() {
       <Bar />
       <div className="app">
         <Sidebar route={route} onRoute={(r) => nav(r)} theme={theme} onTheme={setTheme} onLock={lock} />
-        <main className="main">{screen}</main>
+        <main className="main" key={route === "movimientos" ? `m${version}` : version}>{screen}</main>
         <BottomNav route={route} onRoute={(r) => nav(r)} theme={theme} onTheme={setTheme} onLock={lock} />
       </div>
     </div>

@@ -123,6 +123,8 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE transactions ADD COLUMN category_source TEXT; -- rule | user | auto
     CREATE INDEX idx_tx_hash_group ON transactions(transfer_group);
     "#,
+    // v3: sincronización
+    crate::sync::MIGRATION,
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -131,6 +133,7 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(current as usize) {
         conn.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1))?;
     }
+    crate::sync::install_triggers(conn)?;
     seed(conn)
 }
 

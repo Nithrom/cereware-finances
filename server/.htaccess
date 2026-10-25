@@ -1,0 +1,5 @@
+# Solo sync.php es accesible
+<FilesMatch "\.(sqlite|sqlite-wal|sqlite-shm|md)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes

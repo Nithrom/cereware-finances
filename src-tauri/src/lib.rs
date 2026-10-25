@@ -5,6 +5,7 @@ mod import;
 mod ledger;
 mod planning;
 mod schema;
+mod sync;
 mod vault;
 
 use std::sync::Mutex;
@@ -18,7 +19,10 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_barcode_scanner::init()).plugin(tauri_plugin_keystore::init());
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -82,6 +86,13 @@ pub fn run() {
             commands::categorize_group,
             commands::rules_import,
             commands::app_platform,
+            commands::sync_status,
+            commands::sync_code,
+            commands::sync_now,
+            commands::sync_enable,
+            commands::sync_join,
+            commands::sync_disable,
+            commands::vault_verify,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar CereWare Finances");

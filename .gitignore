@@ -2,7 +2,7 @@ node_modules/
 dist/
 target/
 src-tauri/target/
-src-tauri/gen/
+src-tauri/gen/schemas/
 *.log
 .env
 .env.*
@@ -18,3 +18,4 @@ _tmp/
 movimientos-*.csv
 reglas-*.csv
 *.pem
+server/data/

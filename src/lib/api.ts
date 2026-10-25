@@ -152,3 +152,14 @@ export const catApi = {
   categorizeGroup: (key: string, income: boolean, categoryId: string) => invoke<number>("categorize_group", { key, income, categoryId }),
   rulesImport: (path: string) => invoke<[number, number, string[]]>("rules_import", { path }),
 };
+
+// ---------------------------------------------------------------- sincronización
+export type SyncStatus = { enabled: boolean; server: string | null; device: string; pending: number; last_sync: string | null };
+export const syncApi = {
+  status: () => invoke<SyncStatus>("sync_status"),
+  code: () => invoke<string>("sync_code"),
+  now: () => invoke<{ pushed: number; pulled: number }>("sync_now"),
+  enable: (server: string) => invoke<string>("sync_enable", { server }),
+  join: (code: string) => invoke<{ pushed: number; pulled: number }>("sync_join", { code }),
+  disable: () => invoke<void>("sync_disable"),
+};
