@@ -177,6 +177,7 @@ function TxDetail({ tx, cats, onClose, onSaved }: { tx: TxRow; cats: Category[];
   async function save() {
     try {
       if (parts) {
+        if (parts.some((p) => !p.category_id)) { setErr("Elige una categoría para cada parte"); return; }
         if (left !== 0) { setErr(`Las partes deben sumar ${money(abs)} (faltan ${money(left)})`); return; }
         const list: Split[] = parts.map((p) => ({ category_id: p.category_id, amount_cents: sign * (parseMoney(p.amount) ?? 0), notes: null }));
         await api.txSplit(tx.id, list);
@@ -233,7 +234,7 @@ function TxDetail({ tx, cats, onClose, onSaved }: { tx: TxRow; cats: Category[];
                 <button className="btn g sm" onClick={() => setParts([...parts, { category_id: null, amount: toStr(Math.max(left, 0)) }])}><Plus size={14} />Añadir parte</button>
                 <span className={`small grow split-left ${left === 0 ? "inc" : "exp"}`}>{left === 0 ? "Cuadra con el importe" : left > 0 ? `Faltan ${money(left)}` : `Sobran ${money(-left)}`}</span>
               </div>
-              <button className="btn g sm" onClick={() => { setParts(null); }}>Quitar división</button>
+              <button className="link small" onClick={() => { setParts(null); }}>Quitar división</button>
             </div>
           </Field>
         ) : (
