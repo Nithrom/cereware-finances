@@ -81,6 +81,7 @@ pub fn run() {
             commands::uncategorized_groups,
             commands::categorize_group,
             commands::rules_import,
+            commands::app_platform,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar CereWare Finances");

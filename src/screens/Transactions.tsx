@@ -30,6 +30,8 @@ export function Transactions({ preset, onChanged }: { preset?: TxFilter; onChang
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [quick, setQuick] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilters = [filter.account_id, filter.category_id, filter.from, filter.to].filter(Boolean).length;
 
   useEffect(() => {
     api.accounts().then(setAccounts);
@@ -75,8 +77,9 @@ export function Transactions({ preset, onChanged }: { preset?: TxFilter; onChang
         </div>
       </header>
 
-      <div className="filters">
-        <div className="search"><Search size={16} /><input placeholder="Buscar concepto, nota o categoría" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+      <div className={`filters ${showFilters ? "open" : ""}`}>
+        <div className="search"><Search size={16} /><input placeholder="Buscar concepto, nota o categoría" value={search} onChange={(e) => setSearch(e.target.value)} enterKeyHint="search" /></div>
+        <button className="btn g filters-toggle" onClick={() => setShowFilters(!showFilters)}>Filtros{activeFilters ? ` (${activeFilters})` : ""}</button>
         <select className="input sm" value={filter.account_id ?? ""} onChange={(e) => setFilter({ ...filter, account_id: e.target.value || undefined })}>
           <option value="">Todas las cuentas</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.institution} · {a.name}</option>)}

@@ -940,3 +940,9 @@ pub fn rules_import(state: State<AppState>, path: String) -> R<(usize, usize, Ve
         Ok((added, changed, unknown))
     })
 }
+
+/// Sistema operativo ("windows", "android", "linux"…) para adaptar la ventana.
+#[tauri::command]
+pub fn app_platform() -> &'static str {
+    std::env::consts::OS
+}

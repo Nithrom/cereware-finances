@@ -8,6 +8,9 @@ const mq = () => window.matchMedia("(prefers-color-scheme: dark)");
 function apply(pref: ThemePref) {
   const t = pref === "system" ? (mq().matches ? "dark" : "light") : pref;
   document.documentElement.dataset.theme = t;
+  // Barra de estado del móvil con el color de la cabecera del tema
+  const color = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim();
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", color || "#FFFFFF"));
 }
 
 function read(): ThemePref {

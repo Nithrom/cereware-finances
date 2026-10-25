@@ -1,7 +1,8 @@
 import {
   LayoutDashboard, ArrowLeftRight, PieChart, Repeat, PiggyBank, TrendingUp,
-  Briefcase, FileBarChart, Landmark, Settings, Lock, type LucideIcon,
+  Briefcase, FileBarChart, Landmark, Settings, Lock, Grid2x2, type LucideIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { Logo } from "./Logo";
 import type { ThemePref } from "../lib/theme";
 
@@ -58,5 +59,41 @@ export function Sidebar({ route, onRoute, theme, onTheme, onLock }: Props) {
         </div>
       </div>
     </aside>
+  );
+}
+
+const TABS: Route[] = ["panel", "movimientos", "presupuestos", "prevision"];
+
+/** Navegación del móvil: 4 pestañas + "Más" con el resto de secciones. */
+export function BottomNav({ route, onRoute, theme, onTheme, onLock }: Props) {
+  const [more, setMore] = useState(false);
+  const eff = theme === "system" ? document.documentElement.dataset.theme : theme;
+  const rest = NAV.filter((n) => !TABS.includes(n.id));
+  const go = (r: Route) => { setMore(false); onRoute(r); };
+  return (
+    <>
+      <nav className="bottom-nav" aria-label="Secciones">
+        {TABS.map((id) => {
+          const n = NAV.find((x) => x.id === id)!;
+          return <button key={id} className={`tab ${route === id ? "on" : ""}`} onClick={() => go(id)}><n.icon size={22} />{n.label}</button>;
+        })}
+        <button className={`tab ${rest.some((n) => n.id === route) ? "on" : ""}`} onClick={() => setMore(true)}><Grid2x2 size={22} />Más</button>
+      </nav>
+      {more && (
+        <div className="overlay more-sheet" onMouseDown={(e) => e.target === e.currentTarget && setMore(false)}>
+          <div className="modal card">
+            <div className="modal-body stack">
+              <div className="more-grid">
+                {rest.map((n) => <button key={n.id} className="more-item" onClick={() => go(n.id)}><n.icon size={24} />{n.label}</button>)}
+                <button className="more-item" onClick={() => { setMore(false); onLock(); }}><Lock size={24} />Bloquear</button>
+              </div>
+              <div className="seg wide">
+                {THEMES.map((t) => <button key={t.id} className={eff === t.id ? "on" : ""} onClick={() => onTheme(t.id)}>{t.label}</button>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

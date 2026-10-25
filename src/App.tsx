@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type TxFilter, type VaultStatus } from "./lib/api";
 import { useTheme } from "./lib/theme";
 import { useAutolock } from "./lib/autolock";
-import { Sidebar, type Route } from "./components/Sidebar";
+import { Sidebar, BottomNav, type Route } from "./components/Sidebar";
+import { invoke } from "@tauri-apps/api/core";
 import { TitleBar } from "./components/TitleBar";
 import { LockScreen } from "./screens/Lock";
 import { Dashboard } from "./screens/Dashboard";
@@ -24,14 +25,18 @@ export default function App() {
   const [route, setRoute] = useState<Route>("panel");
   const [preset, setPreset] = useState<TxFilter | undefined>();
   const [version, setVersion] = useState(0);
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => { invoke<string>("app_platform").then((p) => setMobile(p === "android" || p === "ios")).catch(() => {}); }, []);
+  const Bar = mobile ? () => null : TitleBar;
+  const shell = `shell ${mobile ? "mobile" : ""}`;
 
   const refresh = useCallback(() => { api.vaultStatus().then(setStatus); }, []);
   useEffect(refresh, [refresh]);
   const lock = useCallback(async () => { await api.vaultLock(); setRoute("panel"); refresh(); }, [refresh]);
   useAutolock(!!status?.unlocked, lock);
 
-  if (!status) return <div className="shell"><TitleBar /></div>;
-  if (!status.unlocked) return <div className="shell"><TitleBar /><div className="shell-body"><LockScreen exists={status.exists} onUnlocked={refresh} /></div></div>;
+  if (!status) return <div className={shell}><Bar /></div>;
+  if (!status.unlocked) return <div className={shell}><Bar /><div className="shell-body"><LockScreen exists={status.exists} onUnlocked={refresh} /></div></div>;
 
   const nav: Nav = (r, p) => { setPreset(p); setRoute(r); document.querySelector(".main")?.scrollTo(0, 0); };
   const bump = () => setVersion((v) => v + 1);
@@ -51,11 +56,12 @@ export default function App() {
   }
 
   return (
-    <div className="shell">
-      <TitleBar />
+    <div className={shell}>
+      <Bar />
       <div className="app">
         <Sidebar route={route} onRoute={(r) => nav(r)} theme={theme} onTheme={setTheme} onLock={lock} />
         <main className="main">{screen}</main>
+        <BottomNav route={route} onRoute={(r) => nav(r)} theme={theme} onTheme={setTheme} onLock={lock} />
       </div>
     </div>
   );
