@@ -125,6 +125,15 @@ const MIGRATIONS: &[&str] = &[
     "#,
     // v3: sincronización
     crate::sync::MIGRATION,
+    // v4: líneas analíticas (un movimiento dividido cuenta como sus partes)
+    r#"
+    CREATE VIEW tx_lines AS
+      SELECT t.id, t.account_id, t.booking_date, t.amount_cents, t.description, t.category_id, t.is_business, t.transfer_group
+        FROM transactions t WHERE NOT EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id=t.id)
+      UNION ALL
+      SELECT t.id, t.account_id, t.booking_date, s.amount_cents, t.description, s.category_id, t.is_business, t.transfer_group
+        FROM transactions t JOIN transaction_splits s ON s.transaction_id=t.id;
+    "#,
 ];
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {

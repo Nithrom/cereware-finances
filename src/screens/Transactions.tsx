@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, Upload, Briefcase, Trash2, ArrowLeftRight, Sparkles } from "lucide-react";
-import { api, errMsg, type Account, type Category, type TxFilter, type TxPage, type TxRow } from "../lib/api";
+import { Plus, Search, Upload, Briefcase, Trash2, ArrowLeftRight, Sparkles, Split as SplitIcon, X } from "lucide-react";
+import { api, errMsg, type Account, type Category, type TxFilter, type TxPage, type TxRow, type Split } from "../lib/api";
 import { fmtDate, isoToday, money, parseMoney } from "../lib/format";
 import { CatIcon, CategoryPicker, Field, Modal, Toast } from "../components/ui";
 import { ImportWizard } from "../components/ImportWizard";
@@ -118,9 +118,9 @@ export function Transactions({ preset, onChanged }: { preset?: TxFilter; onChang
                   </div>
                   {t.is_business && <Briefcase size={15} className="muted" aria-label="Autónomo" />}
                   <div className="pill-wrap" onClick={(e) => e.stopPropagation()}>
-                    <button className={`cat-pill ${cat ? "" : "none"}`} onClick={() => setPicker(picker === t.id ? null : t.id)}
+                    <button className={`cat-pill ${cat ? "" : "none"}`} onClick={() => t.splits ? setDetail(t) : setPicker(picker === t.id ? null : t.id)}
                       style={cat ? { color: cat.color, background: `color-mix(in srgb, ${cat.color} 14%, transparent)` } : undefined}>
-                      {cat?.name ?? "Categorizar"}
+                      {t.splits ? <><SplitIcon size={12} /> Dividido · {t.splits}</> : cat?.name ?? "Categorizar"}
                     </button>
                     {picker === t.id && <CategoryPicker categories={cats} sign={t.amount_cents} value={t.category_id} onChange={(id) => setCategory(t, id)} onClose={() => setPicker(null)} />}
                   </div>
@@ -155,10 +155,36 @@ function TxDetail({ tx, cats, onClose, onSaved }: { tx: TxRow; cats: Category[];
   const [picker, setPicker] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [parts, setParts] = useState<{ category_id: string | null; amount: string }[] | null>(null);
+  const [partPicker, setPartPicker] = useState<number | null>(null);
   const c = cats.find((x) => x.id === cat);
+  const sign = tx.amount_cents < 0 ? -1 : 1;
+  const abs = Math.abs(tx.amount_cents);
+  const toStr = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
+  useEffect(() => {
+    if (tx.splits) api.txSplits(tx.id).then((v) => setParts(v.map((p) => ({ category_id: p.category_id, amount: toStr(Math.abs(p.amount_cents)) }))));
+  }, [tx.id, tx.splits]);
+  const used = (parts ?? []).reduce((a, p) => a + (parseMoney(p.amount) ?? 0), 0);
+  const left = abs - used;
+  function startSplit() {
+    const half = Math.round(abs / 2);
+    setParts([{ category_id: cat, amount: toStr(abs - half) }, { category_id: null, amount: toStr(half) }]);
+  }
+  function setPart(i: number, patch: Partial<{ category_id: string | null; amount: string }>) {
+    setParts((ps) => ps!.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  }
 
   async function save() {
     try {
+      if (parts) {
+        if (left !== 0) { setErr(`Las partes deben sumar ${money(abs)} (faltan ${money(left)})`); return; }
+        const list: Split[] = parts.map((p) => ({ category_id: p.category_id, amount_cents: sign * (parseMoney(p.amount) ?? 0), notes: null }));
+        await api.txSplit(tx.id, list);
+        await api.txUpdate(tx.id, { notes, is_business: business });
+        onSaved("Movimiento dividido");
+        return;
+      }
+      if (tx.splits) await api.txSplit(tx.id, []);
       await api.txUpdate(tx.id, {
         notes, is_business: business,
         ...(cat !== tx.category_id ? { category_id: cat, learn: cat !== null } : {}),
@@ -185,14 +211,42 @@ function TxDetail({ tx, cats, onClose, onSaved }: { tx: TxRow; cats: Category[];
           <div><b>{tx.description}</b><div className="muted small">{fmtDate(tx.date)} · {tx.institution} · {tx.account_name}</div></div>
           {tx.is_transfer && <span className="chip"><ArrowLeftRight size={12} /> Transferencia interna</span>}
         </div>
-        <Field label="Categoría">
-          <div className="pill-wrap">
-            <button className="input left" onClick={() => setPicker(!picker)}>
-              <CatIcon icon={c?.icon} color={c?.color} size={22} />{c?.name ?? "Sin categoría"}
-            </button>
-            {picker && <CategoryPicker categories={cats} sign={tx.amount_cents} value={cat} onChange={(id) => { setCat(id); setPicker(false); }} onClose={() => setPicker(false)} />}
-          </div>
-        </Field>
+        {parts ? (
+          <Field label="Dividido en partes">
+            <div className="stack split-list">
+              {parts.map((p, i) => {
+                const pc = cats.find((x) => x.id === p.category_id);
+                return (
+                  <div key={i} className="split-row">
+                    <div className="pill-wrap grow">
+                      <button className="input left" onClick={() => setPartPicker(partPicker === i ? null : i)}>
+                        <CatIcon icon={pc?.icon} color={pc?.color} size={20} /><span className="ellipsis">{pc?.name ?? "Elegir categoría"}</span>
+                      </button>
+                      {partPicker === i && <CategoryPicker categories={cats} sign={tx.amount_cents} value={p.category_id} onChange={(id) => { setPart(i, { category_id: id }); setPartPicker(null); }} onClose={() => setPartPicker(null)} />}
+                    </div>
+                    <input className="input num split-amt" inputMode="decimal" value={p.amount} onChange={(e) => setPart(i, { amount: e.target.value })} aria-label="Importe de la parte" />
+                    <button className="btn g icon" aria-label="Quitar parte" disabled={parts.length <= 2} onClick={() => setParts(parts.filter((_, j) => j !== i))}><X size={16} /></button>
+                  </div>
+                );
+              })}
+              <div className="row-gap">
+                <button className="btn g sm" onClick={() => setParts([...parts, { category_id: null, amount: toStr(Math.max(left, 0)) }])}><Plus size={14} />Añadir parte</button>
+                <span className={`small grow split-left ${left === 0 ? "inc" : "exp"}`}>{left === 0 ? "Cuadra con el importe" : left > 0 ? `Faltan ${money(left)}` : `Sobran ${money(-left)}`}</span>
+              </div>
+              <button className="btn g sm" onClick={() => { setParts(null); }}>Quitar división</button>
+            </div>
+          </Field>
+        ) : (
+          <Field label="Categoría">
+            <div className="pill-wrap">
+              <button className="input left" onClick={() => setPicker(!picker)}>
+                <CatIcon icon={c?.icon} color={c?.color} size={22} />{c?.name ?? "Sin categoría"}
+              </button>
+              {picker && <CategoryPicker categories={cats} sign={tx.amount_cents} value={cat} onChange={(id) => { setCat(id); setPicker(false); }} onClose={() => setPicker(false)} />}
+            </div>
+            {!tx.is_transfer && !tx.splits && <button className="link small split-link" onClick={startSplit}><SplitIcon size={13} />Dividir entre varias categorías</button>}
+          </Field>
+        )}
         <Field label="Notas"><textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Añade una nota…" /></Field>
         <label className="check"><input type="checkbox" checked={business} onChange={(e) => setBusiness(e.target.checked)} />Movimiento de autónomo</label>
         {tx.category_source === "rule" && <div className="muted small"><Sparkles size={12} /> Categorizado automáticamente por una regla.</div>}

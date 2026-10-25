@@ -419,3 +419,12 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(-
 }
 @keyframes sheet{from{transform:translateY(100%)}}
 .qr{width:260px;height:260px;border-radius:16px;background:#fff;padding:10px;image-rendering:pixelated}
+/* División de movimientos */
+.split-row{display:flex;gap:8px;align-items:center}
+.split-row .pill-wrap{min-width:0}
+.split-row .input.left{width:100%}
+.split-amt{width:110px;text-align:right;flex:none}
+.btn.icon{padding:8px;flex:none}
+.split-left{text-align:right;align-self:center;font-weight:700}
+.split-link{display:inline-flex;align-items:center;gap:6px;margin-top:8px}
+.cat-pill svg{vertical-align:-2px}

@@ -149,7 +149,7 @@ pub fn dashboard_summary(state: State<AppState>) -> R<DashboardSummary> {
         let (inc, exp): (i64, i64) = c.query_row(
             "SELECT COALESCE(SUM(CASE WHEN t.amount_cents>0 THEN t.amount_cents END),0),
                     COALESCE(SUM(CASE WHEN t.amount_cents<0 THEN t.amount_cents END),0)
-             FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
+             FROM tx_lines t LEFT JOIN categories c ON c.id=t.category_id
              WHERE strftime('%Y-%m',t.booking_date)=strftime('%Y-%m','now') AND COALESCE(c.kind,'')<>'transfer'",
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
@@ -278,6 +278,7 @@ pub fn tx_update(state: State<AppState>, id: String, patch: TxPatch) -> R<TxUpda
         let c = &v.conn;
         let mut learned_applied = 0;
         if let Some(cat) = &patch.category_id {
+            c.execute("DELETE FROM transaction_splits WHERE transaction_id=?", [&id])?;
             c.execute(
                 "UPDATE transactions SET category_id=?, category_source=CASE WHEN ? IS NULL THEN NULL ELSE 'user' END, updated_at=datetime('now') WHERE id=?",
                 rusqlite::params![cat, cat, id],
@@ -298,6 +299,16 @@ pub fn tx_update(state: State<AppState>, id: String, patch: TxPatch) -> R<TxUpda
         }
         Ok(TxUpdateResult { learned_applied })
     })
+}
+
+#[tauri::command]
+pub fn tx_splits(state: State<AppState>, id: String) -> R<Vec<crate::ledger::Split>> {
+    with_vault(&state, |v| Ok(crate::ledger::splits_get(&v.conn, &id)?))
+}
+
+#[tauri::command]
+pub fn tx_split(state: State<AppState>, id: String, parts: Vec<crate::ledger::Split>) -> R<()> {
+    with_vault_save(&state, |v| crate::ledger::split_set(&v.conn, &id, &parts).map_err(err))
 }
 
 #[derive(serde::Deserialize)]

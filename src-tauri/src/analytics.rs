@@ -61,7 +61,7 @@ pub fn flows(conn: &Connection, months: &[String]) -> rusqlite::Result<Vec<Month
     let mut st = conn.prepare(&format!(
         "SELECT COALESCE(SUM(CASE WHEN t.amount_cents>0 THEN t.amount_cents END),0),
                 COALESCE(SUM(CASE WHEN t.amount_cents<0 THEN -t.amount_cents END),0)
-         FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
+         FROM tx_lines t LEFT JOIN categories c ON c.id=t.category_id
          WHERE substr(t.booking_date,1,7)=? AND {NOT_TRANSFER}"
     ))?;
     months
@@ -75,7 +75,7 @@ pub fn by_category(conn: &Connection, from: &str, to: &str, kind: &str) -> rusql
     let mut st = conn.prepare(&format!(
         "SELECT COALESCE(p.id, c.id, '_none'), COALESCE(p.name, c.name, 'Sin categoría'), COALESCE(p.color, c.color, '#94A3B8'),
                 COALESCE(p.icon, c.icon, 'tag'), SUM(abs(t.amount_cents)) s
-         FROM transactions t LEFT JOIN categories c ON c.id=t.category_id LEFT JOIN categories p ON p.id=c.parent_id
+         FROM tx_lines t LEFT JOIN categories c ON c.id=t.category_id LEFT JOIN categories p ON p.id=c.parent_id
          WHERE t.booking_date >= ? AND t.booking_date <= ? AND {sign} AND {NOT_TRANSFER}
          GROUP BY 1 ORDER BY s DESC"
     ))?;
@@ -140,7 +140,7 @@ pub fn budgets(conn: &Connection, month: &str) -> rusqlite::Result<Vec<BudgetRow
     let mut st = conn.prepare(&format!(
         "WITH spent AS (
            SELECT COALESCE(c.parent_id, c.id) cat, substr(t.booking_date,1,7) m, SUM(-t.amount_cents) s
-           FROM transactions t JOIN categories c ON c.id=t.category_id
+           FROM tx_lines t JOIN categories c ON c.id=t.category_id
            WHERE t.amount_cents < 0 AND {NOT_TRANSFER} GROUP BY 1,2)
          SELECT p.id, p.name, p.color, p.icon,
            COALESCE((SELECT amount_cents FROM budgets WHERE category_id=p.id AND month=?1),
@@ -194,7 +194,7 @@ pub fn business_year(conn: &Connection, year: i32) -> rusqlite::Result<BusinessY
     let mut st = conn.prepare(&format!(
         "SELECT COALESCE(SUM(CASE WHEN t.amount_cents>0 THEN t.amount_cents END),0),
                 COALESCE(SUM(CASE WHEN t.amount_cents<0 THEN -t.amount_cents END),0)
-         FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
+         FROM tx_lines t LEFT JOIN categories c ON c.id=t.category_id
          WHERE t.is_business=1 AND substr(t.booking_date,1,7)=? AND {NOT_TRANSFER}"
     ))?;
     let flows: Vec<MonthFlow> = months
@@ -205,7 +205,7 @@ pub fn business_year(conn: &Connection, year: i32) -> rusqlite::Result<BusinessY
     let mut st = conn.prepare(&format!(
         "SELECT COALESCE(p.id, c.id, '_none'), COALESCE(p.name, c.name, 'Sin categoría'), COALESCE(p.color, c.color, '#94A3B8'),
                 COALESCE(p.icon, c.icon, 'tag'), SUM(-t.amount_cents) s
-         FROM transactions t LEFT JOIN categories c ON c.id=t.category_id LEFT JOIN categories p ON p.id=c.parent_id
+         FROM tx_lines t LEFT JOIN categories c ON c.id=t.category_id LEFT JOIN categories p ON p.id=c.parent_id
          WHERE t.is_business=1 AND t.amount_cents<0 AND t.booking_date BETWEEN ?1 AND ?2 AND {NOT_TRANSFER}
          GROUP BY 1 ORDER BY s DESC"
     ))?;
@@ -214,7 +214,7 @@ pub fn business_year(conn: &Connection, year: i32) -> rusqlite::Result<BusinessY
         .collect::<Result<_, _>>()?;
     // Clientes: ingresos agrupados por pagador (clave del concepto)
     let mut st = conn.prepare(&format!(
-        "SELECT t.description, t.amount_cents FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
+        "SELECT t.description, t.amount_cents FROM tx_lines t LEFT JOIN categories c ON c.id=t.category_id
          WHERE t.is_business=1 AND t.amount_cents>0 AND t.booking_date BETWEEN ?1 AND ?2 AND {NOT_TRANSFER}"
     ))?;
     let mut map: std::collections::HashMap<String, Party> = Default::default();

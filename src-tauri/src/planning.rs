@@ -295,7 +295,7 @@ pub fn forecast(conn: &Connection, days: i64, include_variable: bool) -> rusqlit
     // Gasto variable medio diario (90 días) excluyendo transferencias y lo ya recurrente
     let daily_variable = if include_variable {
         let total_exp: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(-t.amount_cents),0) FROM transactions t LEFT JOIN categories c ON c.id=t.category_id
+            "SELECT COALESCE(SUM(-t.amount_cents),0) FROM tx_lines t LEFT JOIN categories c ON c.id=t.category_id
              WHERE t.amount_cents<0 AND t.booking_date >= date('now','-90 days') AND COALESCE(c.kind,'')<>'transfer'",
             [],
             |r| r.get(0),

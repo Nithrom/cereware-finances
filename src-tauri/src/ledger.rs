@@ -346,6 +346,7 @@ pub struct TxRow {
     pub is_business: bool,
     pub vat_rate: Option<f64>,
     pub is_transfer: bool,
+    pub splits: i64,
 }
 
 #[derive(Serialize)]
@@ -369,9 +370,8 @@ pub fn list(conn: &Connection, f: &TxFilter) -> rusqlite::Result<TxPage> {
         args.push(Box::new(a.clone()));
     }
     if let Some(c) = &f.category_id {
-        wh.push("(t.category_id = ? OR c.parent_id = ?)".into());
-        args.push(Box::new(c.clone()));
-        args.push(Box::new(c.clone()));
+        wh.push("(t.category_id = ? OR c.parent_id = ? OR EXISTS (SELECT 1 FROM transaction_splits s LEFT JOIN categories sc ON sc.id=s.category_id WHERE s.transaction_id=t.id AND (s.category_id = ? OR sc.parent_id = ?)))".to_string());
+        for _ in 0..4 { args.push(Box::new(c.clone())) }
     }
     match f.kind.as_deref() {
         Some("income") => wh.push("t.amount_cents > 0 AND COALESCE(c.kind,'') <> 'transfer'".into()),
@@ -402,7 +402,8 @@ pub fn list(conn: &Connection, f: &TxFilter) -> rusqlite::Result<TxPage> {
     )?;
     let sql = format!(
         "SELECT t.id,t.account_id,a.name,a.institution,t.booking_date,t.amount_cents,t.description,t.notes,t.category_id,c.name,c.color,c.icon,
-                t.category_source,t.is_business,t.vat_rate,COALESCE(c.kind,'')='transfer'
+                t.category_source,t.is_business,t.vat_rate,COALESCE(c.kind,'')='transfer',
+                (SELECT COUNT(*) FROM transaction_splits s WHERE s.transaction_id=t.id)
          {from} WHERE {w} ORDER BY t.booking_date DESC, t.created_at DESC LIMIT {} OFFSET {}",
         f.limit.unwrap_or(200).clamp(1, 2000),
         f.offset.unwrap_or(0).max(0)
@@ -427,10 +428,45 @@ pub fn list(conn: &Connection, f: &TxFilter) -> rusqlite::Result<TxPage> {
                 is_business: r.get::<_, i64>(13)? != 0,
                 vat_rate: r.get(14)?,
                 is_transfer: r.get(15)?,
+                splits: r.get(16)?,
             })
         })?
         .collect::<Result<_, _>>()?;
     Ok(TxPage { items, total, income_cents: inc, expense_cents: exp })
+}
+
+#[derive(Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Split {
+    pub category_id: Option<String>,
+    pub amount_cents: i64,
+    pub notes: Option<String>,
+}
+
+pub fn splits_get(conn: &Connection, tx: &str) -> rusqlite::Result<Vec<Split>> {
+    let mut st = conn.prepare("SELECT category_id, amount_cents, notes FROM transaction_splits WHERE transaction_id=? ORDER BY abs(amount_cents) DESC, id")?;
+    let v = st.query_map([tx], |r| Ok(Split { category_id: r.get(0)?, amount_cents: r.get(1)?, notes: r.get(2)? }))?.collect();
+    v
+}
+
+/// Divide un movimiento en partes (vacío = deshacer). Las partes deben sumar el importe y tener su mismo signo.
+/// El movimiento conserva como categoría la de la parte mayor, para listados y filtros.
+pub fn split_set(conn: &Connection, tx: &str, parts: &[Split]) -> Result<(), String> {
+    let amount: i64 = conn.query_row("SELECT amount_cents FROM transactions WHERE id=?", [tx], |r| r.get(0)).map_err(|_| "Movimiento no encontrado".to_string())?;
+    let db = |e: rusqlite::Error| e.to_string();
+    conn.execute("DELETE FROM transaction_splits WHERE transaction_id=?", [tx]).map_err(db)?;
+    if parts.is_empty() { return Ok(()) }
+    if parts.len() < 2 { return Err("Divide en al menos dos partes".into()) }
+    if parts.iter().any(|p| p.amount_cents == 0 || (p.amount_cents < 0) != (amount < 0)) {
+        return Err("Cada parte debe tener importe y el mismo signo que el movimiento".into());
+    }
+    if parts.iter().map(|p| p.amount_cents).sum::<i64>() != amount { return Err("Las partes no suman el importe del movimiento".into()) }
+    for p in parts {
+        conn.execute("INSERT INTO transaction_splits(id,transaction_id,category_id,amount_cents,notes) VALUES(?,?,?,?,NULLIF(?, ''))",
+            rusqlite::params![uid(), tx, p.category_id, p.amount_cents, p.notes]).map_err(db)?;
+    }
+    let main = parts.iter().max_by_key(|p| p.amount_cents.abs()).and_then(|p| p.category_id.clone());
+    conn.execute("UPDATE transactions SET category_id=?, category_source='user', updated_at=datetime('now') WHERE id=?", rusqlite::params![main, tx]).map_err(db)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -493,5 +529,22 @@ mod tests {
         assert!(page.items.iter().all(|t| t.amount_cents < 0 && !t.is_transfer));
         let page = list(&c, &TxFilter { search: Some("mercadona".into()), ..Default::default() }).unwrap();
         assert_eq!(page.total, 1);
+    }
+
+    #[test]
+    fn split_counts_parts_in_analytics() {
+        let c = db();
+        crate::schema::seed(&c).ok();
+        c.execute("INSERT INTO transactions(id,account_id,booking_date,amount_cents,description) VALUES('t','a',date('now'),-10000,'MERCADONA')", []).unwrap();
+        let p = |cat: &str, a: i64| Split { category_id: Some(cat.into()), amount_cents: a, notes: None };
+        assert!(split_set(&c, "t", &[p("supermercado", -7000), p("ropa", -2000)]).is_err());
+        split_set(&c, "t", &[p("supermercado", -7000), p("ropa", -3000)]).unwrap();
+        let main: String = c.query_row("SELECT category_id FROM transactions WHERE id='t'", [], |r| r.get(0)).unwrap();
+        assert_eq!(main, "supermercado");
+        let (n, sum): (i64, i64) = c.query_row("SELECT COUNT(*), SUM(amount_cents) FROM tx_lines WHERE id='t'", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!((n, sum), (2, -10000));
+        split_set(&c, "t", &[]).unwrap();
+        let n: i64 = c.query_row("SELECT COUNT(*) FROM tx_lines WHERE id='t'", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 1);
     }
 }

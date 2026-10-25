@@ -50,8 +50,9 @@ export type TxRow = {
   id: string; account_id: string; account_name: string; institution: string; date: string; amount_cents: number;
   description: string; notes: string | null; category_id: string | null; category_name: string | null;
   category_color: string | null; category_icon: string | null; category_source: string | null;
-  is_business: boolean; vat_rate: number | null; is_transfer: boolean;
+  is_business: boolean; vat_rate: number | null; is_transfer: boolean; splits: number;
 };
+export type Split = { category_id: string | null; amount_cents: number; notes: string | null };
 export type TxPage = { items: TxRow[]; total: number; income_cents: number; expense_cents: number };
 export type TxPatch = { category_id?: string | null; notes?: string; is_business?: boolean; vat_rate?: number; learn?: boolean };
 export type TxInput = { account_id: string; date: string; amount_cents: number; description: string; category_id?: string | null; notes?: string };
@@ -77,6 +78,8 @@ export const api = {
   txUpdate: (id: string, patch: TxPatch) => invoke<{ learned_applied: number }>("tx_update", { id, patch }),
   txCreate: (input: TxInput) => invoke<string>("tx_create", { input }),
   txDelete: (id: string, adjustBalance: boolean) => invoke<void>("tx_delete", { id, adjustBalance }),
+  txSplits: (id: string) => invoke<Split[]>("tx_splits", { id }),
+  txSplit: (id: string, parts: Split[]) => invoke<void>("tx_split", { id, parts }),
   rules: () => invoke<RuleRow[]>("rules_list"),
   ruleCreate: (matchValue: string, categoryId: string) => invoke<number>("rule_create", { matchValue, categoryId }),
   ruleDelete: (id: string) => invoke<void>("rule_delete", { id }),

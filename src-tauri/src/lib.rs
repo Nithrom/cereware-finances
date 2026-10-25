@@ -49,6 +49,8 @@ pub fn run() {
             commands::tx_update,
             commands::tx_create,
             commands::tx_delete,
+            commands::tx_splits,
+            commands::tx_split,
             commands::rules_list,
             commands::rule_create,
             commands::rule_delete,
