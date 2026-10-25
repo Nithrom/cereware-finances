@@ -3,6 +3,7 @@ import { api, type TxFilter, type VaultStatus } from "./lib/api";
 import { useTheme } from "./lib/theme";
 import { useAutolock } from "./lib/autolock";
 import { Sidebar, type Route } from "./components/Sidebar";
+import { TitleBar } from "./components/TitleBar";
 import { LockScreen } from "./screens/Lock";
 import { Dashboard } from "./screens/Dashboard";
 import { Accounts } from "./screens/Accounts";
@@ -29,8 +30,8 @@ export default function App() {
   const lock = useCallback(async () => { await api.vaultLock(); setRoute("panel"); refresh(); }, [refresh]);
   useAutolock(!!status?.unlocked, lock);
 
-  if (!status) return null;
-  if (!status.unlocked) return <LockScreen exists={status.exists} onUnlocked={refresh} />;
+  if (!status) return <div className="shell"><TitleBar /></div>;
+  if (!status.unlocked) return <div className="shell"><TitleBar /><div className="shell-body"><LockScreen exists={status.exists} onUnlocked={refresh} /></div></div>;
 
   const nav: Nav = (r, p) => { setPreset(p); setRoute(r); document.querySelector(".main")?.scrollTo(0, 0); };
   const bump = () => setVersion((v) => v + 1);
@@ -50,9 +51,12 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <Sidebar route={route} onRoute={(r) => nav(r)} theme={theme} onTheme={setTheme} onLock={lock} />
-      <main className="main">{screen}</main>
+    <div className="shell">
+      <TitleBar />
+      <div className="app">
+        <Sidebar route={route} onRoute={(r) => nav(r)} theme={theme} onTheme={setTheme} onLock={lock} />
+        <main className="main">{screen}</main>
+      </div>
     </div>
   );
 }

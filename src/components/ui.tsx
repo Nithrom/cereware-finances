@@ -77,7 +77,9 @@ export function CategoryPicker({ categories, value, onChange, onClose, allowNone
   const n = q.trim().toLowerCase();
   const list = categories.filter((c) => !n || c.name.toLowerCase().includes(n));
   const rank = (c: Category) => (sign > 0 ? (c.kind === "income" ? 0 : c.kind === "transfer" ? 1 : 2) : c.kind === "expense" ? 0 : c.kind === "transfer" ? 1 : 2);
-  const parents = categories.filter((c) => !c.parent_id).sort((a, b) => (sign ? rank(a) - rank(b) : 0));
+  // Una categoría principal sube si ella o alguna subcategoría es del tipo del movimiento
+  const prank = (p: Category) => Math.min(rank(p), ...categories.filter((c) => c.parent_id === p.id).map(rank));
+  const parents = categories.filter((c) => !c.parent_id).sort((a, b) => (sign ? prank(a) - prank(b) : 0));
   const ordered = n ? list : parents.flatMap((p) => [p, ...categories.filter((c) => c.parent_id === p.id)]);
   return (
     <div className="picker card" ref={ref} onClick={(e) => e.stopPropagation()}>

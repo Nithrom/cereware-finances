@@ -134,7 +134,7 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     seed(conn)
 }
 
-const SEED_VERSION: i64 = 3;
+const SEED_VERSION: i64 = 4;
 
 /// Categorías iniciales: (id, padre, nombre, tipo, color, icono)
 const CATEGORIES: &[(&str, Option<&str>, &str, &str, &str, &str)] = &[
@@ -161,7 +161,7 @@ const CATEGORIES: &[(&str, Option<&str>, &str, &str, &str, &str)] = &[
     ("gastos-negocio", Some("autonomo"), "Gastos del negocio", "expense", "#38BDF8", "package"),
     ("otros-gastos", None, "Otros gastos", "expense", "#94A3B8", "circle-ellipsis"),
     ("nomina", None, "Nómina", "income", "#15803D", "wallet"),
-    ("facturacion", None, "Facturación", "income", "#15803D", "file-text"),
+    ("facturacion", Some("autonomo"), "Facturación", "income", "#15803D", "file-text"),
     ("otros-ingresos", None, "Otros ingresos", "income", "#15803D", "plus-circle"),
     ("transferencia", None, "Transferencia interna", "transfer", "#94A3B8", "arrow-left-right"),
     // v2
@@ -231,6 +231,10 @@ pub fn seed(conn: &Connection) -> rusqlite::Result<()> {
     )?;
     for (i, (id, parent, name, kind, color, icon)) in CATEGORIES.iter().enumerate() {
         st.execute(rusqlite::params![id, parent, name, kind, color, icon, i as i64])?;
+    }
+    // v4: Facturación pasa a ser subcategoría (de ingreso) de Autónomo
+    if v < 4 {
+        conn.execute("UPDATE categories SET parent_id='autonomo' WHERE id='facturacion' AND parent_id IS NULL", [])?;
     }
     let mut st = conn.prepare(
         "INSERT OR IGNORE INTO rules(id,name,priority,match_field,match_op,match_value,set_category_id,learned) VALUES(?,?,100,'description','contains',?,?,0)",
