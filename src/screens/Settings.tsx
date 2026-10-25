@@ -11,9 +11,13 @@ import { CatIcon, CategoryPicker, Field, Modal, Toast } from "../components/ui";
 import { getAutolock, setAutolock } from "../lib/autolock";
 import { autoScale, getScale, setScale, type Scale } from "../lib/uiscale";
 import { Monitor } from "lucide-react";
+import { appVersion, checkUpdate } from "../lib/update";
 
 export function Settings({ onRestored, mobile = false }: { onRestored: () => void; mobile?: boolean }) {
   const [toast, setToast] = useState<string | null>(null);
+  const [ver, setVer] = useState("");
+  const [checking, setChecking] = useState(false);
+  useEffect(() => { appVersion().then(setVer).catch(() => {}); }, []);
   const [pw, setPw] = useState(false);
   const [restore, setRestore] = useState<string | null>(null);
   const [lockMin, setLockMin] = useState(getAutolock());
@@ -142,7 +146,13 @@ export function Settings({ onRestored, mobile = false }: { onRestored: () => voi
         {showSys && <div className="sys-rules">{system.map((r) => <span key={r.id} className="chip">{r.match_value} → {r.category_name}</span>)}</div>}
       </section>
 
-      <div className="muted small center">CereWare Finances 0.1.0 · Tus datos solo se guardan en este equipo.</div>
+      <div className="muted small center">CereWare Finances {ver} · Tus datos solo se guardan en tus dispositivos, cifrados.{" "}
+        <button className="link small" disabled={checking} onClick={async () => {
+          setChecking(true);
+          try { const u = await checkUpdate(); setToast(u ? `Hay una versión nueva (${u.version}): usa el aviso de arriba o reinicia la app` : "Tienes la última versión"); }
+          catch (e) { setToast(errMsg(e)); } finally { setChecking(false); }
+        }}>{checking ? "Buscando…" : "Buscar actualizaciones"}</button>
+      </div>
 
       {pw && <PasswordForm onClose={() => setPw(false)} onDone={async (newPw) => {
         setPw(false); setToast("Contraseña cambiada");

@@ -428,3 +428,5 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(-
 .split-left{text-align:right;align-self:center;font-weight:700}
 .split-link{display:inline-flex;align-items:center;gap:6px;margin-top:8px}
 .cat-pill svg{vertical-align:-2px}
+.update-banner{margin:16px 24px 0}
+@media (max-width:760px){.update-banner{margin:12px 14px 0;flex-wrap:wrap}}

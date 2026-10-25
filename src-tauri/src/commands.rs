@@ -968,6 +968,61 @@ pub fn app_platform() -> &'static str {
     std::env::consts::OS
 }
 
+// ---------------------------------------------------------------- actualizaciones (Android)
+
+pub const UPDATE_URL: &str = "https://cerezuela-software.com/cwf/latest.json";
+
+#[derive(serde::Serialize)]
+pub struct UpdateInfo {
+    current: String,
+    version: Option<String>,
+    notes: Option<String>,
+    url: Option<String>,
+}
+
+fn ver(v: &str) -> Vec<u64> {
+    v.trim_start_matches('v').split(['.', '-']).take(3).map(|x| x.parse().unwrap_or(0)).collect()
+}
+
+/// Consulta `latest.json` (sección "android") y dice si hay versión nueva. En Windows se usa el plugin updater.
+#[tauri::command]
+pub async fn update_check(app: tauri::AppHandle) -> R<UpdateInfo> {
+    let current = app.package_info().version.to_string();
+    let v: serde_json::Value = tauri::async_runtime::spawn_blocking(|| {
+        ureq::get(UPDATE_URL).timeout(std::time::Duration::from_secs(15)).call().map_err(|e| e.to_string())?.into_json::<serde_json::Value>().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| err(e.to_string()))?
+    .map_err(|e| err(format!("No se pudo comprobar si hay actualizaciones: {e}")))?;
+    let a = &v["android"];
+    let newer = a["version"].as_str().filter(|n| ver(n) > ver(&current)).map(String::from);
+    Ok(UpdateInfo {
+        current,
+        url: newer.as_ref().and(a["url"].as_str().map(String::from)),
+        notes: newer.as_ref().and(v["notes"].as_str().map(String::from)),
+        version: newer,
+    })
+}
+
+/// Descarga el APK a la caché de la app y devuelve su ruta (la instala el puente Android).
+#[tauri::command]
+pub async fn update_download(app: tauri::AppHandle, url: String) -> R<String> {
+    use tauri::Manager;
+    if !url.starts_with("https://cerezuela-software.com/") { return Err(err("Origen de actualización no permitido")) }
+    let dir = app.path().app_cache_dir().map_err(|e| err(e.to_string()))?;
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let path = dir.join("update.apk");
+        let resp = ureq::get(&url).timeout(std::time::Duration::from_secs(300)).call().map_err(|e| e.to_string())?;
+        let mut f = std::fs::File::create(&path).map_err(|e| e.to_string())?;
+        std::io::copy(&mut resp.into_reader(), &mut f).map_err(|e| e.to_string())?;
+        Ok(path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| err(e.to_string()))?
+    .map_err(|e| err(format!("No se pudo descargar la actualización: {e}")))
+}
+
 // ---------------------------------------------------------------- sincronización
 
 fn serr(e: crate::sync::SyncError) -> VaultError {

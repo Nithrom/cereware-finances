@@ -27,3 +27,4 @@
 -keep class com.google.android.gms.internal.mlkit_vision_common** { *; }
 -keep class androidx.biometric.** { *; }
 -keepattributes SourceFile,LineNumberTable
+-keepclassmembers class com.cereware.finances.CwfBridge { @android.webkit.JavascriptInterface <methods>; }

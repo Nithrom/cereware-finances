@@ -22,6 +22,8 @@ pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_barcode_scanner::init()).plugin(tauri_plugin_keystore::init());
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build()).plugin(tauri_plugin_process::init());
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -97,6 +99,8 @@ pub fn run() {
             commands::sync_join,
             commands::sync_disable,
             commands::vault_verify,
+            commands::update_check,
+            commands::update_download,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar CereWare Finances");

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CereWare Finances",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.cereware.finances",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -38,9 +38,20 @@
       "icons/icon.ico"
     ],
     "publisher": "CereWare",
-    "shortDescription": "Finanzas personales y de aut\u00f3nomo",
+    "shortDescription": "Finanzas personales y de autónomo",
     "android": {
       "minSdkVersion": 28
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE3NEJDNjlCQ0M3N0FDNzcKUldSM3JIZk1tOFpMcHltbXk0SmZjby9UWmUvMDcxc0lYVEJ3aHZuTC81cDhjUHlNOGdwaFE3Z2MK",
+      "endpoints": [
+        "https://cerezuela-software.com/cwf/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

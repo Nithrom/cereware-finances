@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cwf_w_bg">#FF161B1A</color>
+    <color name="cwf_w_text">#FFF3F4F6</color>
+    <color name="cwf_w_muted">#FF9CA3AF</color>
+    <color name="cwf_w_spent">#FFF87171</color>
+</resources>

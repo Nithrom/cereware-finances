@@ -6,6 +6,9 @@ import { useAutoSync } from "./lib/sync";
 import { Sidebar, BottomNav, type Route } from "./components/Sidebar";
 import { invoke } from "@tauri-apps/api/core";
 import { TitleBar } from "./components/TitleBar";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { refreshWidget } from "./lib/android";
+import { checkUpdate, type Update } from "./lib/update";
 import { LockScreen } from "./screens/Lock";
 import { Dashboard } from "./screens/Dashboard";
 import { Accounts } from "./screens/Accounts";
@@ -38,10 +41,21 @@ export default function App() {
   useAutoSync(!!status?.unlocked);
   // Si llegan cambios de otro dispositivo, refresca la pantalla
   useEffect(() => {
-    const h = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.state === "ok" && d.pulled > 0) setVersion((v) => v + 1); };
+    const h = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.state === "ok") { refreshWidget(); if (d.pulled > 0) setVersion((v) => v + 1); } };
     window.addEventListener("cwf-sync", h);
     return () => window.removeEventListener("cwf-sync", h);
   }, []);
+
+  const [update, setUpdate] = useState<Update | null>(null);
+  // Widget de Android: al desbloquear y al salir de la app. Y una comprobación de versión nueva.
+  useEffect(() => {
+    if (!status?.unlocked) return;
+    checkUpdate().then(setUpdate).catch(() => {});
+    refreshWidget();
+    const vis = () => document.visibilityState === "hidden" && refreshWidget();
+    document.addEventListener("visibilitychange", vis);
+    return () => document.removeEventListener("visibilitychange", vis);
+  }, [status?.unlocked]);
 
   if (!status) return <div className={shell}><Bar /></div>;
   if (!status.unlocked) return <div className={shell}><Bar /><div className="shell-body"><LockScreen exists={status.exists} onUnlocked={refresh} mobile={mobile} /></div></div>;
@@ -68,7 +82,7 @@ export default function App() {
       <Bar />
       <div className="app">
         <Sidebar route={route} onRoute={(r) => nav(r)} theme={theme} onTheme={setTheme} onLock={lock} />
-        <main className="main" key={route === "movimientos" ? `m${version}` : version}>{screen}</main>
+        <main className="main" key={route === "movimientos" ? `m${version}` : version}><UpdateBanner update={update} onClose={() => setUpdate(null)} />{screen}</main>
         <BottomNav route={route} onRoute={(r) => nav(r)} theme={theme} onTheme={setTheme} onLock={lock} />
       </div>
     </div>

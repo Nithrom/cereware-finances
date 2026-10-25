@@ -8,4 +8,8 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="cwf_w_bg">#FFFFFFFF</color>
+    <color name="cwf_w_text">#FF16211F</color>
+    <color name="cwf_w_muted">#FF6B7280</color>
+    <color name="cwf_w_spent">#FFB42318</color>
 </resources>

@@ -49,3 +49,14 @@ cifrados de extremo a extremo; el servidor no puede leerlos.
 - `src/` interfaz (React): `screens/`, `components/`, `lib/`, `styles/tokens.css`
 - `src-tauri/src/` backend (Rust): `vault.rs` (cifrado), `schema.rs` (BD), `import.rs` (extractos), `ledger.rs` (movimientos y reglas), `analytics.rs`, `planning.rs` (recurrentes, huchas, previsión), `bank.rs` (Enable Banking), `commands.rs`
 - `docs/` plan, propuestas de logo y maqueta · `brand/` logo final y tokens
+
+## Actualizaciones automáticas
+La app busca versiones nuevas en `https://cerezuela-software.com/cwf/latest.json` al desbloquear
+(y en Ajustes → Buscar actualizaciones). Windows se actualiza solo (instalador firmado); Android
+descarga el APK y abre el instalador.
+
+Publicar una versión:
+1. Sube la versión en `src-tauri/tauri.conf.json`, `package.json` y `src-tauri/Cargo.toml`.
+2. En Windows: `.\scripts\release-windows.ps1 "Novedades"` (usa `firmas\cwf-updater.key` y `firmas\firma-updater.txt`).
+3. Copia el APK firmado como `release\CereWare-Finances-<versión>.apk` y vuelve a ejecutar `node scripts/latest.mjs "Novedades"`.
+4. Sube el contenido de `release\` a `public_html/cwf/` del servidor.

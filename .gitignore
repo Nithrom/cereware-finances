@@ -27,3 +27,6 @@ firma-android.txt
 *.apk
 *.aab
 android-release/
+firmas/
+*.key
+release/
