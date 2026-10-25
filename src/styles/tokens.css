@@ -1,0 +1,34 @@
+/* CereWare Finances — design tokens v1 */
+:root{
+  --font:"Plus Jakarta Sans Variable",system-ui,sans-serif;
+  --r-sm:8px;--r-md:12px;--r-lg:18px;--r-xl:24px;
+  --brand-granate:#7F1D1D;--brand-cherry:#E5383B;
+  /* Claro */
+  --bg:#F7F5F3;--surface:#FFFFFF;--surface-2:#F1EEEB;--border:#E7E2DE;
+  --text:#1F1A1C;--text-2:#6E6467;--text-3:#9A9093;
+  --primary:#7F1D1D;--primary-hover:#991B1B;--on-primary:#FFFFFF;--primary-soft:#F6E8E8;
+  --income:#15803D;--income-soft:#E3F4E8;
+  --expense:#C62828;--expense-soft:#FBE7E7;
+  --warn:#B7791F;--warn-soft:#FBF1DC;
+  --shadow:0 1px 2px rgba(31,26,28,.05),0 4px 16px rgba(31,26,28,.05);
+  /* Categorías / gráficos */
+  --c1:#6C8EF5;--c2:#A78BFA;--c3:#F5A524;--c4:#2BB3A3;--c5:#F472B6;--c6:#FB923C;--c7:#38BDF8;--c8:#94A3B8;
+}
+:root[data-theme=dark]{
+  --bg:#141215;--surface:#1D1A1E;--surface-2:#262227;--border:#332E34;
+  --text:#F2EEEC;--text-2:#A9A0A3;--text-3:#766D70;
+  --primary:#7F1D1D;--primary-hover:#932222;--on-primary:#FFFFFF;--primary-soft:#2C1A1C;
+  --income:#4ADE80;--income-soft:#16291D;
+  --expense:#F87171;--expense-soft:#2E1A1B;
+  --warn:#F2C14E;--warn-soft:#2E2614;
+  --shadow:none;
+}
+:root[data-theme=oled]{
+  --bg:#000000;--surface:#0B0A0B;--surface-2:#141214;--border:#221E22;
+  --text:#EEEAE8;--text-2:#9C9396;--text-3:#6A6265;
+  --primary:#7F1D1D;--primary-hover:#932222;--on-primary:#FFFFFF;--primary-soft:#1F1012;
+  --income:#4ADE80;--income-soft:#0C1A10;
+  --expense:#F87171;--expense-soft:#1C0D0E;
+  --warn:#F2C14E;--warn-soft:#1C160A;
+  --shadow:none;
+}
