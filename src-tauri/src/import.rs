@@ -99,7 +99,7 @@ pub fn latest_balance(txs: &[ParsedTx]) -> Option<i64> {
 pub enum ImportError {
     #[error("No se pudo leer el fichero: {0}")]
     Io(#[from] std::io::Error),
-    #[error("No se pudo leer el Excel: {0}")]
+    #[error("No se pudo leer el Excel ({0}). Prueba a descargar el extracto en CSV desde tu banco.")]
     Excel(String),
     #[error("No se reconoce el formato del fichero")]
     Unknown,
@@ -224,7 +224,148 @@ fn read_csv(text: &str) -> Vec<Vec<String>> {
     rdr.records().filter_map(|r| r.ok()).map(|r| r.iter().map(|c| c.trim().to_string()).collect()).collect()
 }
 
+/// Muchos bancos exportan ".xls" que en realidad son HTML, XML (SpreadsheetML) o texto.
 fn read_excel(path: &Path) -> Result<Vec<Vec<String>>, ImportError> {
+    match read_excel_real(path) {
+        Ok(r) => Ok(r),
+        Err(e) => {
+            let bytes = std::fs::read(path)?;
+            if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) || bytes.starts_with(b"PK") {
+                return Err(e);
+            }
+            let text = decode(&bytes);
+            let low: String = text.chars().take(4000).collect::<String>().to_lowercase();
+            if low.contains("urn:schemas-microsoft-com:office:spreadsheet") || low.contains("<workbook") {
+                Ok(read_spreadsheet_xml(&text))
+            } else if low.contains("<table") || low.contains("<html") {
+                Ok(read_html_table(&text))
+            } else {
+                Ok(read_csv(&text))
+            }
+        }
+    }
+}
+
+fn decode_entities(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(i) = rest.find('&') {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i..];
+        let Some(end) = tail.find(';').filter(|&e| e <= 10) else {
+            out.push('&');
+            rest = &tail[1..];
+            continue;
+        };
+        let ent = &tail[1..end];
+        let rep: Option<String> = if let Some(n) = ent.strip_prefix("#x").or_else(|| ent.strip_prefix("#X")) {
+            u32::from_str_radix(n, 16).ok().and_then(char::from_u32).map(String::from)
+        } else if let Some(n) = ent.strip_prefix('#') {
+            n.parse::<u32>().ok().and_then(char::from_u32).map(String::from)
+        } else {
+            match ent {
+                "nbsp" => Some(" "), "amp" => Some("&"), "lt" => Some("<"), "gt" => Some(">"), "quot" => Some("\""), "apos" => Some("'"),
+                "aacute" => Some("á"), "eacute" => Some("é"), "iacute" => Some("í"), "oacute" => Some("ó"), "uacute" => Some("ú"),
+                "Aacute" => Some("Á"), "Eacute" => Some("É"), "Iacute" => Some("Í"), "Oacute" => Some("Ó"), "Uacute" => Some("Ú"),
+                "ntilde" => Some("ñ"), "Ntilde" => Some("Ñ"), "uuml" => Some("ü"), "Uuml" => Some("Ü"), "euro" => Some("€"),
+                "ordf" => Some("ª"), "ordm" => Some("º"), "ccedil" => Some("ç"), "Ccedil" => Some("Ç"),
+                _ => None,
+            }
+            .map(String::from)
+        };
+        match rep {
+            Some(r) => { out.push_str(&r); rest = &tail[end + 1..]; }
+            None => { out.push('&'); rest = &tail[1..]; }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+fn strip_tags(s: &str) -> String {
+    let mut out = String::new();
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => { in_tag = false; out.push(' '); }
+            c if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    decode_entities(&out).split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Divide `text` por etiquetas `tag` (sin distinguir mayúsculas) devolviendo el contenido interior.
+fn split_tag<'a>(text: &'a str, tag: &str) -> Vec<&'a str> {
+    let low = text.to_lowercase();
+    let open = format!("<{tag}");
+    let close = format!("</{tag}");
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while let Some(i) = low[pos..].find(&open) {
+        let s = pos + i;
+        let after = &low[s + open.len()..];
+        // evita <td> casando con <tdx>
+        if !after.starts_with(|c: char| c == '>' || c.is_whitespace() || c == '/') {
+            pos = s + open.len();
+            continue;
+        }
+        let Some(gt) = low[s..].find('>') else { break };
+        let body_start = s + gt + 1;
+        let next_open = low[body_start..].find(&open).map(|x| body_start + x);
+        let end = low[body_start..].find(&close).map(|x| body_start + x);
+        let body_end = match (end, next_open) {
+            (Some(e), Some(n)) => e.min(n),
+            (Some(e), None) => e,
+            (None, Some(n)) => n,
+            (None, None) => low.len(),
+        };
+        out.push(&text[body_start..body_end]);
+        pos = body_end;
+    }
+    out
+}
+
+fn read_html_table(text: &str) -> Vec<Vec<String>> {
+    split_tag(text, "tr")
+        .into_iter()
+        .map(|tr| {
+            let low = tr.to_lowercase();
+            let tag = if low.contains("<td") { "td" } else { "th" };
+            let mut cells: Vec<String> = Vec::new();
+            for c in split_tag(tr, tag) {
+                cells.push(strip_tags(c));
+            }
+            if tag == "td" && low.contains("<th") {
+                let mut h: Vec<String> = split_tag(tr, "th").into_iter().map(strip_tags).collect();
+                h.extend(cells);
+                cells = h;
+            }
+            cells
+        })
+        .filter(|r| r.iter().any(|c| !c.is_empty()))
+        .collect()
+}
+
+fn read_spreadsheet_xml(text: &str) -> Vec<Vec<String>> {
+    split_tag(text, "row")
+        .into_iter()
+        .map(|row| {
+            split_tag(row, "cell")
+                .into_iter()
+                .map(|c| {
+                    let v = strip_tags(c);
+                    // fechas ISO "2026-10-24T00:00:00.000"
+                    if v.len() >= 19 && v.as_bytes().get(10) == Some(&b'T') { v[..10].to_string() } else { v }
+                })
+                .collect()
+        })
+        .filter(|r: &Vec<String>| r.iter().any(|c| !c.is_empty()))
+        .collect()
+}
+
+fn read_excel_real(path: &Path) -> Result<Vec<Vec<String>>, ImportError> {
     let mut wb = open_workbook_auto(path).map_err(|e| ImportError::Excel(e.to_string()))?;
     let range = wb.worksheet_range_at(0).ok_or(ImportError::Unknown)?.map_err(|e| ImportError::Excel(e.to_string()))?;
     Ok(range
@@ -605,6 +746,25 @@ mod tests {
         assert_eq!(r2.txs.len(), 3);
         assert_eq!(r2.txs[2].amount_cents, 1000);
         assert_eq!(latest_balance(&r2.txs), Some(10880));
+    }
+
+    #[test]
+    fn fake_xls_html_and_xml() {
+        let html = "<html><head><meta charset='utf-8'></head><body><table><tr><td colspan=5>Movimientos</td></tr>\n<tr><th>Fecha Operaci&oacute;n</th><th>Fecha Valor</th><th>Concepto</th><th>Importe</th><th>Saldo</th></tr>\n<tr><td>24/10/2026</td><td>24/10/2026</td><td>COMPRA&nbsp;EN MERCADONA</td><td>-54,30</td><td>6.912,10</td></tr><tr><td>23/10/2026</td><td>23/10/2026</td><td><b>BIZUM</b> DE ANA</td><td>20,00</td><td>6.966,40</td></tr></table></body></html>";
+        let r = parse_file(&tmp("ob.xls", html.as_bytes()), None).unwrap();
+        assert_eq!(r.txs.len(), 2);
+        assert_eq!(r.txs[0].description, "COMPRA EN MERCADONA");
+        assert_eq!(r.txs[0].amount_cents, -5430);
+        assert_eq!(r.txs[1].description, "BIZUM DE ANA");
+        assert_eq!(latest_balance(&r.txs), Some(691210));
+        let xml = "<?xml version=\"1.0\"?><Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\"><Worksheet><Table><Row><Cell><Data ss:Type=\"String\">Fecha</Data></Cell><Cell><Data ss:Type=\"String\">Concepto</Data></Cell><Cell><Data>Importe</Data></Cell></Row><Row><Cell><Data ss:Type=\"DateTime\">2026-10-22T00:00:00.000</Data></Cell><Cell><Data>REPSOL</Data></Cell><Cell><Data ss:Type=\"Number\">-48</Data></Cell></Row></Table></Worksheet></Workbook>";
+        let r = parse_file(&tmp("bbva.xls", xml.as_bytes()), None).unwrap();
+        assert_eq!(r.txs.len(), 1);
+        assert_eq!(r.txs[0].date, "2026-10-22");
+        assert_eq!(r.txs[0].amount_cents, -4800);
+        let tsv = "Fecha\tConcepto\tImporte\n01/10/2026\tPan\t-1,20\n";
+        let r = parse_file(&tmp("t.xls", tsv.as_bytes()), None).unwrap();
+        assert_eq!(r.txs[0].amount_cents, -120);
     }
 
     #[test]
