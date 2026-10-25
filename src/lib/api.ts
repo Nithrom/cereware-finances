@@ -1,4 +1,16 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as rawInvoke } from "@tauri-apps/api/core";
+
+/** Tras cualquier escritura, sincroniza a los pocos segundos (agrupando cambios seguidos). */
+const WRITE = /^(?!sync_|vault_|settings_)\w+_(create|update|delete|set|upsert|contribute|commit|restore|import|finish|active|split)$|^categorize_group$|^bank_sync/;
+let syncTimer: number | undefined;
+function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const p = rawInvoke<T>(cmd, args);
+  if (WRITE.test(cmd)) p.then(() => {
+    window.clearTimeout(syncTimer);
+    syncTimer = window.setTimeout(() => import("./sync").then((m) => m.syncNow()), 4000);
+  }, () => {});
+  return p;
+}
 
 export type VaultStatus = { exists: boolean; unlocked: boolean };
 export type Account = {

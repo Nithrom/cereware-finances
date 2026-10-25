@@ -84,7 +84,7 @@ export function Dashboard({ onNav }: { onNav: Nav }) {
           {syncMsg && <div className="banner warn"><AlertTriangle size={16} />{syncMsg}</div>}
           {expiring.length > 0 && (
             <div className="banner warn clickable" onClick={() => onNav("cuentas")}>
-              <AlertTriangle size={16} /><span><b>El acceso a {expiring[0].institution} caduca el {fmtDate(expiring[0].consent_expires_at!.slice(0, 10))}.</b> Renueva el consentimiento para seguir sincronizando.</span>
+              <AlertTriangle size={16} /><span><b>El acceso a {expiring[0].institution} {new Date(expiring[0].consent_expires_at!) < new Date() ? "caducó" : "caduca"} el {fmtDate(expiring[0].consent_expires_at!.slice(0, 10))}.</b> Renueva el consentimiento para seguir sincronizando.</span>
             </div>
           )}
           {d.uncategorized > 0 && (
