@@ -23,6 +23,21 @@ npm run tauri build    # instalador (MSI/NSIS) en src-tauri/target/release/bundl
 
 Tests del backend: `cd src-tauri && cargo test`
 
+## Android
+Mismo código que Windows. Requisitos extra: Android Studio (SDK 34 + NDK 27) y
+`rustup target add aarch64-linux-android`. Variables: `ANDROID_HOME` y `NDK_HOME`.
+
+```
+npm run tauri android dev               # en un móvil conectado por USB
+npm run tauri android build -- --apk --target aarch64
+```
+El APK sin firmar queda en `src-tauri/gen/android/app/build/outputs/apk/universal/release/`.
+Fírmalo con tu keystore (`apksigner sign --ks cwf-release.jks …`).
+
+## Sincronización entre dispositivos
+Servidor propio en `server/` (PHP + SQLite, ver `server/README.md`). Los datos viajan
+cifrados de extremo a extremo; el servidor no puede leerlos.
+
 ## Funciones
 - Importación de extractos: CSV, Excel, OFX y Norma 43 (Openbank, BBVA, Revolut y genéricos)
 - Conexión bancaria PSD2 vía Enable Banking (beta, con credenciales propias)

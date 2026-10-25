@@ -19,3 +19,11 @@ movimientos-*.csv
 reglas-*.csv
 *.pem
 server/data/
+
+# Firma de Android y binarios (no subir)
+*.jks
+*.keystore
+firma-android.txt
+*.apk
+*.aab
+android-release/

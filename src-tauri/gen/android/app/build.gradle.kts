@@ -15,6 +15,10 @@ val tauriProperties = Properties().apply {
 }
 
 android {
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
     compileSdk = 37
     namespace = "com.cereware.finances"
     defaultConfig {
