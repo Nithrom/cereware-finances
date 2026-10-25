@@ -895,3 +895,59 @@ pub async fn bank_sync(state: State<'_, AppState>) -> R<Vec<SyncResult>> {
     let cfg = bank_cfg(&state)?;
     sync_all(&state, &cfg).await
 }
+
+#[tauri::command]
+pub fn uncategorized_groups(state: State<AppState>) -> R<Vec<crate::ledger::UncatGroup>> {
+    with_vault(&state, |v| Ok(crate::ledger::uncategorized_groups(&v.conn)?))
+}
+
+#[tauri::command]
+pub fn categorize_group(state: State<AppState>, key: String, income: bool, category_id: String) -> R<usize> {
+    with_vault_save(&state, |v| Ok(crate::ledger::categorize_group(&v.conn, &key, income, &category_id)?))
+}
+
+/// Importa reglas desde un CSV "palabras;categoría" (categoría por id o por nombre). Cabecera opcional.
+#[tauri::command]
+pub fn rules_import(state: State<AppState>, path: String) -> R<(usize, usize, Vec<String>)> {
+    let text = std::fs::read(&path).map_err(|_| err("No se pudo leer el fichero"))?;
+    let text = match String::from_utf8(text.clone()) {
+        Ok(s) => s,
+        Err(_) => encoding_rs::WINDOWS_1252.decode(&text).0.into_owned(),
+    };
+    with_vault_save(&state, |v| {
+        let cats: Vec<(String, String)> = {
+            let mut st = v.conn.prepare("SELECT id, name FROM categories")?;
+            let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        let norm = |s: &str| crate::import::norm(s);
+        let (mut added, mut unknown) = (0usize, Vec::new());
+        for line in text.lines() {
+            let line = line.trim().trim_start_matches('\u{feff}');
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let Some((words, cat)) = line.split_once(';').or_else(|| line.split_once('\t')).or_else(|| line.split_once(',')) else { continue };
+            let (words, cat) = (words.trim().trim_matches('"'), cat.trim().trim_matches('"'));
+            if norm(words) == "palabras" || norm(words) == "texto" {
+                continue;
+            }
+            let Some(cid) = cats.iter().find(|(id, name)| id == cat || norm(name) == norm(cat)).map(|c| c.0.clone()) else {
+                unknown.push(format!("{words} → {cat}"));
+                continue;
+            };
+            let key = crate::ledger::rule_norm(words);
+            if key.len() < 2 {
+                continue;
+            }
+            v.conn.execute("DELETE FROM rules WHERE learned=1 AND match_value=? AND set_category_id=?", rusqlite::params![key, cid])?;
+            v.conn.execute(
+                "INSERT INTO rules(id,name,priority,match_field,match_op,match_value,set_category_id,learned) VALUES(?,?,8,'description','words',?,?,1)",
+                rusqlite::params![crate::ledger::uid(), key, key, cid],
+            )?;
+            added += 1;
+        }
+        let changed = crate::ledger::recategorize(&v.conn)?;
+        Ok((added, changed, unknown))
+    })
+}

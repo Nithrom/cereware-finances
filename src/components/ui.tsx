@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   X, Home, KeyRound, Zap, Wifi, ShoppingCart, ShoppingBasket, Utensils, Car, Fuel, TrainFront, Gamepad2, Repeat,
   Plane, ShoppingBag, Cpu, Shirt, HeartPulse, Briefcase, Landmark, Receipt, Package, CircleEllipsis, Wallet,
-  FileText, PlusCircle, ArrowLeftRight, Tag, Check, Search, type LucideIcon,
+  FileText, PlusCircle, ArrowLeftRight, Tag, Check, Search, Smartphone, Undo2, TrendingUp, Gift, Banknote, Shield,
+  GraduationCap, PawPrint, type LucideIcon,
 } from "lucide-react";
 import type { Category } from "../lib/api";
 
@@ -11,7 +12,9 @@ const ICONS: Record<string, LucideIcon> = {
   utensils: Utensils, car: Car, fuel: Fuel, "train-front": TrainFront, "gamepad-2": Gamepad2, repeat: Repeat, plane: Plane,
   "shopping-bag": ShoppingBag, cpu: Cpu, shirt: Shirt, "heart-pulse": HeartPulse, briefcase: Briefcase, landmark: Landmark,
   receipt: Receipt, package: Package, "circle-ellipsis": CircleEllipsis, wallet: Wallet, "file-text": FileText,
-  "plus-circle": PlusCircle, "arrow-left-right": ArrowLeftRight,
+  "plus-circle": PlusCircle, "arrow-left-right": ArrowLeftRight, smartphone: Smartphone, "undo-2": Undo2,
+  "trending-up": TrendingUp, tag: Tag, gift: Gift, banknote: Banknote, shield: Shield, "graduation-cap": GraduationCap,
+  "paw-print": PawPrint,
 };
 
 export function CatIcon({ icon, color, size = 36 }: { icon?: string | null; color?: string | null; size?: number }) {
@@ -57,8 +60,10 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 /** Selector de categoría con buscador, agrupado por categoría padre. */
-export function CategoryPicker({ categories, value, onChange, onClose, allowNone = true }: {
+export function CategoryPicker({ categories, value, onChange, onClose, allowNone = true, sign = 0 }: {
   categories: Category[]; value: string | null; onChange: (id: string | null) => void; onClose: () => void; allowNone?: boolean;
+  /** >0 ingreso (primero categorías de ingreso), <0 gasto */
+  sign?: number;
 }) {
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -71,7 +76,8 @@ export function CategoryPicker({ categories, value, onChange, onClose, allowNone
   }, [onClose]);
   const n = q.trim().toLowerCase();
   const list = categories.filter((c) => !n || c.name.toLowerCase().includes(n));
-  const parents = categories.filter((c) => !c.parent_id);
+  const rank = (c: Category) => (sign > 0 ? (c.kind === "income" ? 0 : c.kind === "transfer" ? 1 : 2) : c.kind === "expense" ? 0 : c.kind === "transfer" ? 1 : 2);
+  const parents = categories.filter((c) => !c.parent_id).sort((a, b) => (sign ? rank(a) - rank(b) : 0));
   const ordered = n ? list : parents.flatMap((p) => [p, ...categories.filter((c) => c.parent_id === p.id)]);
   return (
     <div className="picker card" ref={ref} onClick={(e) => e.stopPropagation()}>

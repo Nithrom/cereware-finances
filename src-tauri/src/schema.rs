@@ -134,7 +134,7 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     seed(conn)
 }
 
-const SEED_VERSION: i64 = 1;
+const SEED_VERSION: i64 = 2;
 
 /// Categorías iniciales: (id, padre, nombre, tipo, color, icono)
 const CATEGORIES: &[(&str, Option<&str>, &str, &str, &str, &str)] = &[
@@ -164,6 +164,19 @@ const CATEGORIES: &[(&str, Option<&str>, &str, &str, &str, &str)] = &[
     ("facturacion", None, "Facturación", "income", "#15803D", "file-text"),
     ("otros-ingresos", None, "Otros ingresos", "income", "#15803D", "plus-circle"),
     ("transferencia", None, "Transferencia interna", "transfer", "#94A3B8", "arrow-left-right"),
+    // v2
+    ("bizum-recibido", None, "Bizum recibido", "income", "#15803D", "smartphone"),
+    ("devoluciones", None, "Devoluciones y reembolsos", "income", "#15803D", "undo-2"),
+    ("intereses", None, "Intereses y rendimientos", "income", "#15803D", "trending-up"),
+    ("ventas", None, "Ventas (segunda mano)", "income", "#15803D", "tag"),
+    ("regalos-recibidos", None, "Regalos recibidos", "income", "#15803D", "gift"),
+    ("ayudas", None, "Ayudas y subvenciones", "income", "#15803D", "landmark"),
+    ("efectivo", Some("otros-gastos"), "Cajero y efectivo", "expense", "#94A3B8", "banknote"),
+    ("comisiones", Some("otros-gastos"), "Comisiones bancarias", "expense", "#94A3B8", "receipt"),
+    ("bizum-enviado", Some("otros-gastos"), "Bizum enviado", "expense", "#94A3B8", "smartphone"),
+    ("seguros", Some("vivienda"), "Seguros", "expense", "#6C8EF5", "shield"),
+    ("educacion", None, "Educación", "expense", "#FB7185", "graduation-cap"),
+    ("mascotas", None, "Mascotas", "expense", "#F59E0B", "paw-print"),
 ];
 
 /// Reglas del sistema: (palabras a buscar, categoría)
@@ -184,6 +197,21 @@ const RULES: &[(&str, &str)] = &[
     ("GLOVO|JUST EAT|UBER EATS|TELEPIZZA|BURGER KING|MCDONALD|MCDONALDS|MCDONALD S|KFC|STARBUCKS|TGB|GOIKO|RESTAURANTE|BAR|CAFETERIA|PIZZERIA|VIPS|FOSTER|TACO BELL|DOMINOS|100 MONTADITOS|TAPERIA|CERVECERIA", "restaurantes"),
     ("RYANAIR|VUELING|IBERIA|BOOKING|AIRBNB|EASYJET|AIR EUROPA|BINTER|EXPEDIA|HOTEL", "viajes"),
     ("ALQUILER|HIPOTECA|COMUNIDAD PROPIETARIOS", "alquiler"),
+    // v2 (las reglas con la misma palabra para ingreso y gasto se resuelven por el signo)
+    ("BIZUM", "bizum-recibido"),
+    ("BIZUM", "bizum-enviado"),
+    ("DEVOLUCION|REEMBOLSO|REFUND|ABONO COMPRA|ANULACION", "devoluciones"),
+    ("INTERESES|INTERES|LIQUIDACION INTERESES|RENDIMIENTO|DIVIDENDO|CASHBACK", "intereses"),
+    ("WALLAPOP|VINTED|MILANUNCIOS", "ventas"),
+    ("WALLAPOP|VINTED|MILANUNCIOS", "compras"),
+    ("CAJERO|REINTEGRO|RETIRADA EFECTIVO|RETIRO EFECTIVO|DISPOSICION EFECTIVO|ATM|CASH WITHDRAWAL", "efectivo"),
+    ("COMISION|COMISIONES|MANTENIMIENTO CUENTA|CUOTA TARJETA|CUOTA ANUAL TARJETA|FEE", "comisiones"),
+    ("SEGURO|SEGUROS|MAPFRE|MUTUA|LINEA DIRECTA|ALLIANZ|AXA|GENERALI|VERTI|SANTALUCIA|OCASO|ZURICH|CASER|PELAYO", "seguros"),
+    ("TOP UP|TOPUP|TO POCKET|FROM POCKET|EXCHANGED TO|TRASPASO|TRASPASO INTERNO|TRANSFERENCIA ENTRE CUENTAS|ENVIO A CUENTA PROPIA", "transferencia"),
+    ("COLEGIO|ACADEMIA|UNIVERSIDAD|MATRICULA|UDEMY|COURSERA|PLATZI|LIBRERIA", "educacion"),
+    ("VETERINARIO|VETERINARIA|KIWOKO|TIENDANIMAL|ZOOPLUS|MASCOTA", "mascotas"),
+    ("SUBVENCION|AYUDA|PRESTACION|SEPE|INSS|DEVOLUCION HACIENDA|DEVOLUCION RENTA", "ayudas"),
+    ("PRIMARK|FNAC", "compras"),
 ];
 
 pub fn seed(conn: &Connection) -> rusqlite::Result<()> {
@@ -212,5 +240,9 @@ pub fn seed(conn: &Connection) -> rusqlite::Result<()> {
         "INSERT INTO settings(key,value) VALUES('seed_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
         [SEED_VERSION.to_string()],
     )?;
+    // Almacenes existentes: aplicar las reglas nuevas a lo ya importado
+    if v > 0 {
+        crate::ledger::recategorize(conn)?;
+    }
     Ok(())
 }

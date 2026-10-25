@@ -148,3 +148,11 @@ export const bankApi = {
   linked: () => invoke<{ id: string; label: string }[]>("bank_linked"),
   syncAccount: (id: string) => invoke<SyncResult>("bank_sync_account", { id }),
 };
+
+// ---------------------------------------------------------------- categorización rápida
+export type UncatGroup = { key: string; sample: string; count: number; total_cents: number; income: boolean };
+export const catApi = {
+  groups: () => invoke<UncatGroup[]>("uncategorized_groups"),
+  categorizeGroup: (key: string, income: boolean, categoryId: string) => invoke<number>("categorize_group", { key, income, categoryId }),
+  rulesImport: (path: string) => invoke<[number, number, string[]]>("rules_import", { path }),
+};

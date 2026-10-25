@@ -3,7 +3,7 @@ import { save, open } from "@tauri-apps/plugin-dialog";
 import { ShieldCheck, Download, Upload, KeyRound, Tags, Wand2, Trash2, Plus, Landmark } from "lucide-react";
 import { bankApi, type BankConfigView } from "../lib/api";
 import { BankConfigForm } from "../components/BankConnect";
-import { api, api2, errMsg, type Category, type RuleRow } from "../lib/api";
+import { api, api2, catApi, errMsg, type Category, type RuleRow } from "../lib/api";
 import { CatIcon, CategoryPicker, Field, Modal, Toast } from "../components/ui";
 import { getAutolock, setAutolock } from "../lib/autolock";
 
@@ -34,6 +34,16 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
   async function pickRestore() {
     const f = await open({ multiple: false, filters: [{ name: "Copia de CereWare Finances", extensions: ["cwbak", "cwf"] }] });
     if (typeof f === "string") setRestore(f);
+  }
+
+  async function importRules() {
+    const f = await open({ multiple: false, filters: [{ name: "Reglas (CSV)", extensions: ["csv", "txt"] }] });
+    if (typeof f !== "string") return;
+    try {
+      const [added, changed, unknown] = await catApi.rulesImport(f);
+      loadRules();
+      setToast(`${added} reglas importadas · ${changed} movimientos categorizados${unknown.length ? ` · ${unknown.length} con categoría desconocida` : ""}`);
+    } catch (e) { setToast(errMsg(e)); }
   }
 
   const learned = rules.filter((r) => r.learned);
@@ -90,7 +100,9 @@ export function Settings({ onRestored }: { onRestored: () => void }) {
       </section>
 
       <section className="card settings-sec">
-        <h3><Wand2 size={18} />Reglas de categorización <button className="btn g sm ml" onClick={() => setNewRule({ text: "", cat: null })}><Plus size={14} />Nueva regla</button></h3>
+        <h3><Wand2 size={18} />Reglas de categorización
+          <button className="btn g sm ml" onClick={importRules}><Upload size={14} />Importar</button>
+          <button className="btn g sm" onClick={() => setNewRule({ text: "", cat: null })}><Plus size={14} />Nueva regla</button></h3>
         <div className="muted small">Las reglas aprendidas se crean al categorizar un movimiento con "Aprender" activado. Tienen prioridad sobre las del sistema.</div>
         {learned.length === 0 && <div className="muted small pad">Aún no hay reglas aprendidas.</div>}
         {learned.map((r) => (

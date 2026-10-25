@@ -256,6 +256,50 @@ pub fn learn(conn: &Connection, desc: &str, category_id: &str) -> rusqlite::Resu
     recategorize(conn)
 }
 
+#[derive(Serialize)]
+pub struct UncatGroup {
+    pub key: String,
+    pub sample: String,
+    pub count: i64,
+    pub total_cents: i64,
+    pub income: bool,
+}
+
+/// Movimientos sin categoría agrupados por comercio (clave aprendible) y signo.
+pub fn uncategorized_groups(conn: &Connection) -> rusqlite::Result<Vec<UncatGroup>> {
+    let mut st = conn.prepare("SELECT description, amount_cents FROM transactions WHERE category_id IS NULL")?;
+    let rows: Vec<(String, i64)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?;
+    let mut map: HashMap<(String, bool), UncatGroup> = HashMap::new();
+    for (d, a) in rows {
+        let key = learn_key(&d).unwrap_or_else(|| "(otros)".into());
+        let g = map.entry((key.clone(), a > 0)).or_insert(UncatGroup { key, sample: d.clone(), count: 0, total_cents: 0, income: a > 0 });
+        g.count += 1;
+        g.total_cents += a;
+    }
+    let mut v: Vec<UncatGroup> = map.into_values().collect();
+    v.sort_by(|a, b| b.count.cmp(&a.count).then(b.total_cents.abs().cmp(&a.total_cents.abs())));
+    Ok(v)
+}
+
+/// Categoriza todo un grupo: crea la regla aprendida y la aplica. Devuelve cuántos cambiaron.
+pub fn categorize_group(conn: &Connection, key: &str, income: bool, category_id: &str) -> rusqlite::Result<usize> {
+    if key == "(otros)" {
+        return Ok(0);
+    }
+    let existing: Option<String> = conn
+        .query_row("SELECT id FROM rules WHERE learned=1 AND match_value=? AND set_category_id IN (SELECT id FROM categories WHERE (kind='income')=?)",
+            params![key, income], |r| r.get(0))
+        .optional()?;
+    match existing {
+        Some(id) => conn.execute("UPDATE rules SET set_category_id=? WHERE id=?", params![category_id, id])?,
+        None => conn.execute(
+            "INSERT INTO rules(id,name,priority,match_field,match_op,match_value,set_category_id,learned) VALUES(?,?,10,'description','words',?,?,1)",
+            params![uid(), key, key, category_id],
+        )?,
+    };
+    recategorize(conn)
+}
+
 // ---------------------------------------------------------------- consultas
 
 #[derive(Deserialize, Default, Clone)]
@@ -419,9 +463,19 @@ mod tests {
         let n = learn(&c, "Pago en LA PELUQUERIA DE LOLA", "salud").unwrap();
         assert_eq!(n, 2);
 
+        insert_parsed(&c, "a", &[ptx("2026-10-10", "BIZUM DE ANA CENA", 1500), ptx("2026-10-11", "BIZUM A PEPE", -900),
+            ptx("2026-10-12", "PANADERIA LA ESPIGA", -150), ptx("2026-10-13", "PANADERIA LA ESPIGA", -180)], None).unwrap();
+        let cat_of = |d: &str| -> Option<String> { c.query_row("SELECT category_id FROM transactions WHERE description=?", [d], |r| r.get(0)).unwrap() };
+        assert_eq!(cat_of("BIZUM DE ANA CENA").as_deref(), Some("bizum-recibido"));
+        assert_eq!(cat_of("BIZUM A PEPE").as_deref(), Some("bizum-enviado"));
+        let g = uncategorized_groups(&c).unwrap();
+        let pan = g.iter().find(|x| x.key == "PANADERIA ESPIGA").unwrap();
+        assert_eq!(pan.count, 2);
+        assert_eq!(categorize_group(&c, "PANADERIA ESPIGA", false, "supermercado").unwrap(), 2);
+
         let page = list(&c, &TxFilter { kind: Some("expense".into()), ..Default::default() }).unwrap();
         assert!(page.items.iter().all(|t| t.amount_cents < 0 && !t.is_transfer));
-        let page = list(&c, &TxFilter { search: Some("merca".into()), ..Default::default() }).unwrap();
+        let page = list(&c, &TxFilter { search: Some("mercadona".into()), ..Default::default() }).unwrap();
         assert_eq!(page.total, 1);
     }
 }

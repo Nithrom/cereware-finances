@@ -294,3 +294,8 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:var(-
 @keyframes spin{to{transform:rotate(360deg)}}
 .acc .banner{padding:8px 10px;font:inherit;font-size:12px;text-align:left}
 .sync-rows{width:100%;display:flex;flex-direction:column}
+.quick-list{max-height:52vh;overflow:auto;padding-right:4px}
+.count-badge{min-width:36px;height:28px;padding:0 8px;border-radius:9px;display:grid;place-items:center;background:var(--surface-2);font-weight:800;font-size:13px}
+.cat-pill:disabled{opacity:.4;cursor:default}
+.inline-picker .picker{position:static;width:100%;box-shadow:none;margin-bottom:10px}
+.inline-picker .picker-list{max-height:240px}

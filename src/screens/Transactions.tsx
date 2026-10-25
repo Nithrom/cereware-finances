@@ -4,6 +4,7 @@ import { api, errMsg, type Account, type Category, type TxFilter, type TxPage, t
 import { fmtDate, isoToday, money, parseMoney } from "../lib/format";
 import { CatIcon, CategoryPicker, Field, Modal, Toast } from "../components/ui";
 import { ImportWizard } from "../components/ImportWizard";
+import { QuickCategorize } from "../components/QuickCategorize";
 
 const KIND_CHIPS: { id: TxFilter["kind"]; label: string }[] = [
   { id: undefined, label: "Todos" },
@@ -28,6 +29,7 @@ export function Transactions({ preset, onChanged }: { preset?: TxFilter; onChang
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [quick, setQuick] = useState(false);
 
   useEffect(() => {
     api.accounts().then(setAccounts);
@@ -67,6 +69,7 @@ export function Transactions({ preset, onChanged }: { preset?: TxFilter; onChang
           {page && <div className="muted num">{page.total} movimientos · <span className="inc">{money(page.income_cents, { sign: true })}</span> · <span className="exp">{money(page.expense_cents)}</span></div>}
         </div>
         <div className="row-gap">
+          <button className="btn g" onClick={() => setQuick(true)} disabled={!accounts.length}><Sparkles size={16} />Categorización rápida</button>
           <button className="btn g" onClick={() => setImporting(true)} disabled={!accounts.length}><Upload size={16} />Importar</button>
           <button className="btn p" onClick={() => setCreating(true)} disabled={!accounts.length}><Plus size={16} />Añadir</button>
         </div>
@@ -116,7 +119,7 @@ export function Transactions({ preset, onChanged }: { preset?: TxFilter; onChang
                       style={cat ? { color: cat.color, background: `color-mix(in srgb, ${cat.color} 14%, transparent)` } : undefined}>
                       {cat?.name ?? "Categorizar"}
                     </button>
-                    {picker === t.id && <CategoryPicker categories={cats} value={t.category_id} onChange={(id) => setCategory(t, id)} onClose={() => setPicker(null)} />}
+                    {picker === t.id && <CategoryPicker categories={cats} sign={t.amount_cents} value={t.category_id} onChange={(id) => setCategory(t, id)} onClose={() => setPicker(null)} />}
                   </div>
                   <div className={`amt num ${t.is_transfer ? "muted" : t.amount_cents > 0 ? "inc" : "exp"}`}>{money(t.amount_cents, { sign: true })}</div>
                 </div>
@@ -135,6 +138,7 @@ export function Transactions({ preset, onChanged }: { preset?: TxFilter; onChang
       {detail && <TxDetail tx={detail} cats={cats} onClose={() => setDetail(null)} onSaved={(m) => { setDetail(null); setToast(m); changed(); }} />}
       {creating && <TxForm accounts={accounts} cats={cats} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); setToast("Movimiento añadido"); changed(); }} />}
       {importing && <ImportWizard accounts={accounts} defaultAccountId={filter.account_id} onClose={() => setImporting(false)} onDone={() => { setImporting(false); changed(); }} />}
+      {quick && <QuickCategorize cats={cats} onClose={() => { setQuick(false); changed(); }} />}
       {toast && <Toast msg={toast} onDone={() => setToast(null)} />}
     </div>
   );
@@ -185,7 +189,7 @@ function TxDetail({ tx, cats, onClose, onSaved }: { tx: TxRow; cats: Category[];
             <button className="input left" onClick={() => setPicker(!picker)}>
               <CatIcon icon={c?.icon} color={c?.color} size={22} />{c?.name ?? "Sin categoría"}
             </button>
-            {picker && <CategoryPicker categories={cats} value={cat} onChange={(id) => { setCat(id); setPicker(false); }} onClose={() => setPicker(false)} />}
+            {picker && <CategoryPicker categories={cats} sign={tx.amount_cents} value={cat} onChange={(id) => { setCat(id); setPicker(false); }} onClose={() => setPicker(false)} />}
           </div>
         </Field>
         <Field label="Notas"><textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Añade una nota…" /></Field>
@@ -241,7 +245,7 @@ function TxForm({ accounts, cats, onClose, onSaved }: { accounts: Account[]; cat
           <Field label="Categoría">
             <div className="pill-wrap">
               <button className="input left" onClick={() => setPicker(!picker)}><CatIcon icon={c?.icon} color={c?.color} size={22} />{c?.name ?? "Sin categoría"}</button>
-              {picker && <CategoryPicker categories={cats} value={f.category_id} onChange={(id) => { setF({ ...f, category_id: id }); setPicker(false); }} onClose={() => setPicker(false)} />}
+              {picker && <CategoryPicker categories={cats} sign={f.type === "income" ? 1 : -1} value={f.category_id} onChange={(id) => { setF({ ...f, category_id: id }); setPicker(false); }} onClose={() => setPicker(false)} />}
             </div>
           </Field>
         </div>
