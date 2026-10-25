@@ -12,3 +12,4 @@ src-tauri/gen/
 .DS_Store
 Thumbs.db
 brand/logo/_cf-logo.zip
+_tmp/
