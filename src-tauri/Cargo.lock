@@ -526,7 +526,7 @@ dependencies = [
 
 [[package]]
 name = "cereware-finances"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "aes-gcm",
  "argon2",
