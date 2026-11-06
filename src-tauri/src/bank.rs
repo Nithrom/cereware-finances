@@ -65,6 +65,11 @@ fn call(cfg: &BankConfig, method: &str, path: &str, body: Option<Value>) -> Resu
                 .ok()
                 .and_then(|v| v.get("message").or(v.get("detail")).and_then(|m| m.as_str()).map(String::from))
                 .unwrap_or(txt);
+            if msg.contains("interacting with ASPSP") {
+                return Err(BankError::Api(format!(
+                    "{code} · el banco no responde ahora mismo (fallo en su lado). Prueba más tarde; si sigue fallando mañana, vuelve a conectar la cuenta"
+                )));
+            }
             Err(BankError::Api(format!("{code} · {msg}")))
         }
         Err(e) => Err(BankError::Net(e.to_string())),
