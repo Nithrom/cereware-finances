@@ -1,6 +1,6 @@
 [package]
 name = "cereware-finances"
-version = "0.2.2"
+version = "0.2.3"
 description = "CereWare Finances"
 authors = ["CereWare"]
 edition = "2024"

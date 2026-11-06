@@ -47,9 +47,13 @@ pub fn install_triggers(conn: &Connection) -> rusqlite::Result<()> {
         let extra = |r: &str| if *t == "settings" { format!(" AND {r}.key NOT IN ({LOCAL_SETTINGS})") } else { String::new() };
         for (ev, short, rec, op) in [("INSERT", "ins", "NEW", "upsert"), ("UPDATE", "upd", "NEW", "upsert"), ("DELETE", "del", "OLD", "delete")] {
             sql.push_str(&format!(
-                "CREATE TRIGGER IF NOT EXISTS trk_{t}_{short} AFTER {ev} ON {t} WHEN {active}{x} BEGIN
+                // Upsert y no "OR REPLACE": las acciones de clave foránea (ON DELETE SET NULL/CASCADE)
+                // imponen ABORT a los triggers y el REPLACE fallaba al borrar una cuenta.
+                "DROP TRIGGER IF EXISTS trk_{t}_{short};
+                 CREATE TRIGGER trk_{t}_{short} AFTER {ev} ON {t} WHEN {active}{x} BEGIN
                    INSERT INTO sync_log(tbl,row_id,op,hlc) VALUES('{t}', {rec}.{pk}, '{op}', {HLC});
-                   INSERT OR REPLACE INTO row_hlc(tbl,row_id,hlc) VALUES('{t}', {rec}.{pk}, {HLC});
+                   INSERT INTO row_hlc(tbl,row_id,hlc) VALUES('{t}', {rec}.{pk}, {HLC})
+                     ON CONFLICT(tbl,row_id) DO UPDATE SET hlc=excluded.hlc;
                  END;\n",
                 x = extra(rec)
             ));
@@ -574,5 +578,27 @@ mod tests {
         apply(&a, &p.ops).unwrap();
         let bal: i64 = a.query_row("SELECT balance_cents FROM accounts WHERE id='acc'", [], |r| r.get(0)).unwrap();
         assert_eq!(bal, 2500);
+    }
+}
+
+#[cfg(test)]
+mod delete_account_tests {
+    use rusqlite::Connection;
+    #[test]
+    fn delete_account_with_tracking() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        crate::schema::migrate(&c).unwrap();
+        crate::schema::seed(&c).ok();
+        c.execute_batch("UPDATE sync_state SET value='1' WHERE key='tracking'; INSERT OR IGNORE INTO sync_state(key,value) VALUES('tracking','1'),('applying','0');").unwrap();
+        c.execute("INSERT INTO accounts(id,name,institution,balance_cents) VALUES('a','C','B',0)", []).unwrap();
+        for i in 0..3 {
+            c.execute("INSERT INTO transactions(id,account_id,booking_date,amount_cents,description) VALUES(?,'a','2026-10-01',-100,'x')", [format!("t{i}")]).unwrap();
+        }
+        c.execute("INSERT INTO transaction_splits(id,transaction_id,category_id,amount_cents) VALUES('s1','t0','ropa',-50),('s2','t0','ropa',-50)", []).unwrap();
+        c.execute("INSERT INTO goals(id,name,target_cents,account_id) VALUES('g','Hucha',1000,'a')", []).unwrap();
+        c.execute("DELETE FROM accounts WHERE id='a'", []).unwrap();
+        let n: i64 = c.query_row("SELECT COUNT(*) FROM sync_log WHERE op='delete' AND tbl='transactions'", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 3);
     }
 }
