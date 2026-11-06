@@ -65,6 +65,11 @@ fn call(cfg: &BankConfig, method: &str, path: &str, body: Option<Value>) -> Resu
                 .ok()
                 .and_then(|v| v.get("message").or(v.get("detail")).and_then(|m| m.as_str()).map(String::from))
                 .unwrap_or(txt);
+            if code == 429 || msg.contains("HUB046") {
+                return Err(BankError::Api(format!(
+                    "429 · se ha agotado el límite diario de consultas que permite el banco (PSD2). Se podrá actualizar mañana"
+                )));
+            }
             if msg.contains("interacting with ASPSP") {
                 return Err(BankError::Api(format!(
                     "{code} · el banco no responde ahora mismo (fallo en su lado). Prueba más tarde; si sigue fallando mañana, vuelve a conectar la cuenta"
@@ -242,7 +247,7 @@ pub fn map_tx(t: &Value) -> Option<ParsedTx> {
 pub fn transactions(cfg: &BankConfig, uid: &str, date_from: &str) -> Result<Vec<ParsedTx>, BankError> {
     match transactions_from(cfg, uid, date_from) {
         // Algunos bancos rechazan historial largo: reintenta con 89 días
-        Err(BankError::Api(m)) if m.starts_with("4") && !m.starts_with("401") && !m.starts_with("403") => {
+        Err(BankError::Api(m)) if m.starts_with("4") && !m.starts_with("401") && !m.starts_with("403") && !m.starts_with("429") => {
             let short = (chrono::Local::now().date_naive() - chrono::Duration::days(89)).to_string();
             if short.as_str() > date_from { transactions_from(cfg, uid, &short) } else { Err(BankError::Api(m)) }
         }

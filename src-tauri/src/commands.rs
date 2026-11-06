@@ -840,8 +840,40 @@ fn linked_accounts(state: &State<'_, AppState>, only: Option<&str>) -> R<Vec<Lin
     })
 }
 
+/// La PSD2 limita a 4 consultas al día por cuenta sin que el usuario esté presente, y cada
+/// actualización gasta dos (saldo y movimientos). Se lleva la cuenta (se sincroniza entre
+/// dispositivos) para no agotar el cupo: máximo 2 actualizaciones al día por cuenta.
+const BANK_DAILY_MAX: i64 = 2;
+
+fn bank_quota(state: &State<'_, AppState>, id: &str, add: i64) -> R<i64> {
+    with_vault_save(state, |v| {
+        let key = format!("bank_access:{id}");
+        let today = chrono::Local::now().date_naive().to_string();
+        let cur: Option<String> = v.conn.query_row("SELECT value FROM settings WHERE key=?", [&key], |r| r.get(0)).map(Some).or_else(|e| if matches!(e, rusqlite::Error::QueryReturnedNoRows) { Ok(None) } else { Err(e) })?;
+        let (day, n) = cur
+            .and_then(|s| s.split_once('|').map(|(d, n)| (d.to_string(), n.parse::<i64>().unwrap_or(0))))
+            .unwrap_or_default();
+        let n = if day == today { n } else { 0 };
+        if add != 0 {
+            v.conn.execute(
+                "INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                rusqlite::params![key, format!("{today}|{}", n + add)],
+            )?;
+        }
+        Ok(n + add)
+    })
+}
+
 async fn sync_one(state: &State<'_, AppState>, cfg: &crate::bank::BankConfig, row: LinkedRow) -> R<SyncResult> {
     let (id, uid, label, last) = row;
+    if bank_quota(state, &id, 0)? >= BANK_DAILY_MAX {
+        return Ok(SyncResult {
+            account: label,
+            inserted: 0,
+            error: Some("Ya se ha actualizado hoy las veces que permite el banco (PSD2). Se podrá de nuevo mañana.".into()),
+        });
+    }
+    bank_quota(state, &id, 1)?;
     let from = last
         .and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok())
         .map(|d| d - chrono::Duration::days(7))
@@ -864,7 +896,12 @@ async fn sync_one(state: &State<'_, AppState>, cfg: &crate::bank::BankConfig, ro
             })?;
             SyncResult { account: label, inserted: r.inserted, error: None }
         }
-        Err(e) => SyncResult { account: label, inserted: 0, error: Some(e.to_string()) },
+        Err(e) => {
+            if e.to_string().contains(" 429 ") || e.to_string().contains("429 ·") {
+                bank_quota(state, &id, BANK_DAILY_MAX)?; // el banco ya ha cerrado el cupo de hoy
+            }
+            SyncResult { account: label, inserted: 0, error: Some(e.to_string()) }
+        }
     })
 }
 
